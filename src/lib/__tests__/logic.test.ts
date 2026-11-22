@@ -6,13 +6,15 @@ import {
   estimateLineTotal,
   estimateOrderTotal,
 } from '../pricing';
-import { formatPKR, slugify } from '../format';
+import { formatPKR, getErrorMessage, slugify } from '../format';
 import {
   normalizeWhatsAppNumber,
   isValidWhatsAppNumber,
   buildWhatsAppLink,
   buildOrderWhatsAppMessage,
+  buildProductWhatsAppMessage,
 } from '../whatsapp';
+import { parseManagedStorageUrl } from '../storageUrl';
 import { buyerOrderSchema, whatsappSettingSchema, validateQuantity } from '../validation';
 import { pick } from '../i18n';
 import type { ProductPriceTier } from '../../types/db';
@@ -110,4 +112,56 @@ test('i18n: pick selects Urdu when available and falls back to English', () => {
   assert.equal(pick(item, 'name', 'en'), 'Inverter');
   assert.equal(pick(item, 'name', 'ur'), 'انورٹر');
   assert.equal(pick(item, 'desc', 'ur'), 'Pure sine');
+});
+
+test('format: getErrorMessage extracts Error and Postgrest-like object messages', () => {
+  assert.equal(getErrorMessage(new Error('DB constraint failed'), 'Fallback'), 'DB constraint failed');
+  assert.equal(getErrorMessage({ message: 'new row violates row-level security', code: '42501' }, 'Fallback'), 'new row violates row-level security');
+  assert.equal(getErrorMessage({ message: '   ' }, 'Fallback'), 'Fallback');
+  assert.equal(getErrorMessage(null, 'Fallback'), 'Fallback');
+});
+
+test('storageUrl: parseManagedStorageUrl matches managed buckets only', () => {
+  const supabaseUrl = 'https://sihdukiyucmvbtfbacjv.supabase.co';
+  assert.deepEqual(
+    parseManagedStorageUrl(
+      'https://sihdukiyucmvbtfbacjv.supabase.co/storage/v1/object/public/product-images/products/123/photo%201.webp',
+      supabaseUrl,
+    ),
+    { bucket: 'product-images', path: 'products/123/photo 1.webp' },
+  );
+  assert.deepEqual(
+    parseManagedStorageUrl(
+      'https://sihdukiyucmvbtfbacjv.supabase.co/storage/v1/object/public/site-assets/site/banner.jpg',
+      supabaseUrl,
+    ),
+    { bucket: 'site-assets', path: 'site/banner.jpg' },
+  );
+  assert.equal(
+    parseManagedStorageUrl('https://cdn.example.com/storage/v1/object/public/product-images/a.jpg', supabaseUrl),
+    null,
+  );
+  assert.equal(
+    parseManagedStorageUrl('https://images.unsplash.com/photo-123', supabaseUrl),
+    null,
+  );
+  assert.equal(
+    parseManagedStorageUrl(
+      'https://sihdukiyucmvbtfbacjv.supabase.co/storage/v1/object/public/other-bucket/a.jpg',
+      supabaseUrl,
+    ),
+    null,
+  );
+});
+
+test('whatsapp: buildProductWhatsAppMessage includes SKU, quantity, and productUrl', () => {
+  const msg = buildProductWhatsAppMessage({
+    name: 'SC5 VA-1260 Solar Controller',
+    sku: 'ASK-SC5VA-1260',
+    quantity: 5,
+    productUrl: 'https://asatek.sadiqabad.workers.dev/products/sc5-va-1260',
+  });
+  assert.ok(msg.includes('SC5 VA-1260 Solar Controller (ASK-SC5VA-1260)'));
+  assert.ok(msg.includes('Quantity: 5'));
+  assert.ok(msg.includes('Link: https://asatek.sadiqabad.workers.dev/products/sc5-va-1260'));
 });

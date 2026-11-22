@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CategoryIcon } from '../ui/CategoryIcon';
 
 interface ProductImageSlotProps {
@@ -17,6 +17,10 @@ export function ProductImageSlot({
   className = '',
 }: ProductImageSlotProps) {
   const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [imageUrl]);
 
   if (imageUrl && !failed) {
     return (

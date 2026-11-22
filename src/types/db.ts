@@ -142,6 +142,7 @@ export interface PaginatedResult<T> {
 export interface SubmitInquiryPayload {
   type: InquiryType;
   channel: InquiryChannel;
+  anonymous?: boolean;
   name: string;
   phone: string;
   city?: string;
@@ -161,6 +162,21 @@ export interface SubmitInquiryResult {
 export interface DashboardCounts {
   total_products: number;
   active_products: number;
+  new_orders: number;
   new_inquiries: number;
   inquiries_last_7_days: number;
+}
+
+export interface HomeBanner {
+  id: string;
+  image_url: string;
+  title_en: string | null;
+  title_ur: string | null;
+  subtitle_en: string | null;
+  subtitle_ur: string | null;
+  button_text_en: string | null;
+  button_text_ur: string | null;
+  button_link: string | null;
+  sort_order: number;
+  is_active: boolean;
 }

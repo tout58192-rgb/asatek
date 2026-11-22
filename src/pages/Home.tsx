@@ -1,8 +1,12 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowRight,
   BadgeCheck,
+  ChevronLeft,
+  ChevronRight,
   Factory,
+  ImageOff,
   PackageCheck,
   Truck,
 } from 'lucide-react';
@@ -13,6 +17,7 @@ import { CategoryIcon } from '../components/ui/CategoryIcon';
 import { ProductCardSkeleton } from '../components/ui/Skeleton';
 import { WhatsAppIcon } from '../components/ui/WhatsAppIcon';
 import { useI18n } from '../contexts/LanguageContext';
+import { useBanners } from '../hooks/useBanners';
 import { useCategories } from '../hooks/useCategories';
 import { useFeaturedProducts } from '../hooks/useProducts';
 import { useSettings } from '../hooks/useSettings';
@@ -22,8 +27,14 @@ import { buildWhatsAppLink } from '../lib/whatsapp';
 export default function Home() {
   const { lang, t, pick } = useI18n();
   const { data: settings } = useSettings();
+  const { data: banners } = useBanners();
   const { data: categories, isLoading: catsLoading } = useCategories();
   const { data: featured, isLoading: featLoading } = useFeaturedProducts(8);
+
+  const [heroImgFailed, setHeroImgFailed] = useState(false);
+  const [failedCatImgs, setFailedCatImgs] = useState<Record<string, boolean>>({});
+  const [failedBannerImgs, setFailedBannerImgs] = useState<Record<string, boolean>>({});
+  const [bannerIdx, setBannerIdx] = useState(0);
 
   const heroTitle = pickSetting(
     settings,
@@ -40,6 +51,19 @@ export default function Home() {
         'Assalam o Alaikum ASATEK, I would like wholesale rates and product availability.',
       )
     : '#';
+
+  useEffect(() => {
+    setHeroImgFailed(false);
+  }, [heroImageUrl]);
+
+  const activeBanners = banners ?? [];
+  useEffect(() => {
+    if (activeBanners.length > 0 && bannerIdx >= activeBanners.length) {
+      setBannerIdx(0);
+    }
+  }, [activeBanners.length, bannerIdx]);
+
+  const currentBanner = activeBanners[bannerIdx] ?? null;
 
   const trustItems = [
     {
@@ -116,12 +140,14 @@ export default function Home() {
 
             {/* Hero Visual Slot */}
             <div className="lg:col-span-5">
-              {heroImageUrl ? (
+              {heroImageUrl && !heroImgFailed ? (
                 <div className="aspect-[4/3] rounded-xl overflow-hidden border border-white/15 bg-black/20">
                   <img
                     src={heroImageUrl}
                     alt={heroTitle}
+                    loading="lazy"
                     referrerPolicy="no-referrer"
+                    onError={() => setHeroImgFailed(true)}
                     className="w-full h-full object-cover"
                   />
                 </div>
@@ -172,6 +198,123 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Active Home Banners Showcase */}
+      {currentBanner && (
+        <section className="bg-[var(--bg-alt)] border-b border-[var(--line)] py-8">
+          <div className="max-w-[1200px] mx-auto px-4 md:px-6">
+            <div className="relative rounded-2xl border border-[var(--line)] bg-white overflow-hidden shadow-xs">
+              <div className="grid grid-cols-1 md:grid-cols-12 items-center">
+                <div className="md:col-span-7 aspect-[16/9] md:aspect-[16/8] bg-[var(--bg-alt)] overflow-hidden flex items-center justify-center">
+                  {currentBanner.image_url && !failedBannerImgs[currentBanner.id] ? (
+                    <img
+                      src={currentBanner.image_url}
+                      alt={pick(currentBanner as unknown as Record<string, unknown>, 'title') || 'ASATEK Banner'}
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
+                      onError={() =>
+                        setFailedBannerImgs((prev) => ({ ...prev, [currentBanner.id]: true }))
+                      }
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center gap-2 text-[var(--ink-soft)] p-6">
+                      <ImageOff className="w-8 h-8 opacity-50" />
+                      <span className="text-xs font-medium">{t('common.brandFull')}</span>
+                    </div>
+                  )}
+                </div>
+
+                {(pick(currentBanner as unknown as Record<string, unknown>, 'title') ||
+                  pick(currentBanner as unknown as Record<string, unknown>, 'subtitle') ||
+                  (pick(currentBanner as unknown as Record<string, unknown>, 'button_text') &&
+                    currentBanner.button_link)) && (
+                  <div className="md:col-span-5 p-6 md:p-8 space-y-3">
+                    {pick(currentBanner as unknown as Record<string, unknown>, 'title') && (
+                      <h2 className="text-xl md:text-2xl font-bold text-[var(--ink)]">
+                        {pick(currentBanner as unknown as Record<string, unknown>, 'title')}
+                      </h2>
+                    )}
+                    {pick(currentBanner as unknown as Record<string, unknown>, 'subtitle') && (
+                      <p className="text-sm sm:text-base text-[var(--ink-soft)] leading-relaxed">
+                        {pick(currentBanner as unknown as Record<string, unknown>, 'subtitle')}
+                      </p>
+                    )}
+                    {pick(currentBanner as unknown as Record<string, unknown>, 'button_text') &&
+                      currentBanner.button_link && (
+                        <div className="pt-2">
+                          {/^https?:\/\//i.test(currentBanner.button_link) ? (
+                            <a
+                              href={currentBanner.button_link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 min-h-[42px] px-5 py-2 rounded-lg bg-[var(--brand-red)] text-white text-sm font-semibold hover:bg-[var(--brand-red-dark)] transition-colors"
+                            >
+                              <span>
+                                {pick(currentBanner as unknown as Record<string, unknown>, 'button_text')}
+                              </span>
+                              <ArrowRight className="w-4 h-4 rtl:rotate-180" />
+                            </a>
+                          ) : (
+                            <Link
+                              to={currentBanner.button_link}
+                              className="inline-flex items-center gap-2 min-h-[42px] px-5 py-2 rounded-lg bg-[var(--brand-red)] text-white text-sm font-semibold hover:bg-[var(--brand-red-dark)] transition-colors"
+                            >
+                              <span>
+                                {pick(currentBanner as unknown as Record<string, unknown>, 'button_text')}
+                              </span>
+                              <ArrowRight className="w-4 h-4 rtl:rotate-180" />
+                            </Link>
+                          )}
+                        </div>
+                      )}
+                  </div>
+                )}
+              </div>
+
+              {activeBanners.length > 1 && (
+                <div className="flex items-center justify-between px-4 py-2.5 border-t border-[var(--line)] bg-[var(--bg-alt)]">
+                  <button
+                    type="button"
+                    aria-label="Previous banner"
+                    onClick={() =>
+                      setBannerIdx((i) => (i - 1 + activeBanners.length) % activeBanners.length)
+                    }
+                    className="p-1.5 rounded-lg border border-[var(--line)] bg-white text-[var(--ink)] hover:border-[var(--brand-red)] cursor-pointer"
+                  >
+                    <ChevronLeft className="w-4 h-4 rtl:rotate-180" />
+                  </button>
+
+                  <div className="flex items-center gap-1.5">
+                    {activeBanners.map((b, i) => (
+                      <button
+                        key={b.id}
+                        type="button"
+                        aria-label={`Banner ${i + 1}`}
+                        onClick={() => setBannerIdx(i)}
+                        className={`h-2 rounded-full transition-all cursor-pointer ${
+                          i === bannerIdx
+                            ? 'w-6 bg-[var(--brand-red)]'
+                            : 'w-2 bg-gray-300 hover:bg-gray-400'
+                        }`}
+                      />
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    aria-label="Next banner"
+                    onClick={() => setBannerIdx((i) => (i + 1) % activeBanners.length)}
+                    className="p-1.5 rounded-lg border border-[var(--line)] bg-white text-[var(--ink)] hover:border-[var(--brand-red)] cursor-pointer"
+                  >
+                    <ChevronRight className="w-4 h-4 rtl:rotate-180" />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Categories Grid */}
       <section className="py-12 md:py-16 bg-white">
         <div className="max-w-[1200px] mx-auto px-4 md:px-6">
@@ -201,20 +344,39 @@ export default function Home() {
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 sm:gap-4">
-              {(categories ?? []).map((cat) => (
-                <Link
-                  key={cat.id}
-                  to={`/products?category=${cat.slug}`}
-                  className="group flex flex-col items-start justify-between gap-3 rounded-xl border border-[var(--line)] bg-white p-4 transition-colors duration-150 hover:bg-[var(--brand-red)] hover:border-[var(--brand-red)] hover:text-white"
-                >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--brand-red-light)] text-[var(--brand-red)] group-hover:bg-white/15 group-hover:text-white transition-colors">
-                    <CategoryIcon name={cat.icon} className="w-5 h-5" />
-                  </div>
-                  <span className="text-sm font-semibold text-[var(--ink)] group-hover:text-white">
-                    {pick(cat as unknown as Record<string, unknown>, 'name')}
-                  </span>
-                </Link>
-              ))}
+              {(categories ?? []).map((cat) => {
+                const catName = pick(cat as unknown as Record<string, unknown>, 'name');
+                const showCatImg = Boolean(cat.image_url) && !failedCatImgs[cat.id];
+                return (
+                  <Link
+                    key={cat.id}
+                    to={`/products?category=${cat.slug}`}
+                    className="group flex flex-col items-start justify-between gap-3 rounded-xl border border-[var(--line)] bg-white p-4 transition-colors duration-150 hover:bg-[var(--brand-red)] hover:border-[var(--brand-red)] hover:text-white"
+                  >
+                    {showCatImg ? (
+                      <div className="h-12 w-12 rounded-lg overflow-hidden border border-[var(--line)] bg-[var(--bg-alt)] shrink-0">
+                        <img
+                          src={cat.image_url!}
+                          alt={catName}
+                          loading="lazy"
+                          referrerPolicy="no-referrer"
+                          onError={() =>
+                            setFailedCatImgs((prev) => ({ ...prev, [cat.id]: true }))
+                          }
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--brand-red-light)] text-[var(--brand-red)] group-hover:bg-white/15 group-hover:text-white transition-colors">
+                        <CategoryIcon name={cat.icon} className="w-5 h-5" />
+                      </div>
+                    )}
+                    <span className="text-sm font-semibold text-[var(--ink)] group-hover:text-white">
+                      {catName}
+                    </span>
+                  </Link>
+                );
+              })}
             </div>
           )}
         </div>

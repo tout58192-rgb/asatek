@@ -20,8 +20,9 @@ import { Select } from '../../components/ui/Select';
 import { useToast } from '../../contexts/ToastContext';
 import { useCategories } from '../../hooks/useCategories';
 import { useProductById } from '../../hooks/useProduct';
-import { slugify } from '../../lib/format';
+import { getErrorMessage, slugify } from '../../lib/format';
 import { saveProduct } from '../../services/products';
+import { deleteStorageImageByPublicUrl } from '../../services/storage';
 import type { AvailabilityStatus } from '../../types/db';
 
 export default function AdminProductForm() {
@@ -48,6 +49,7 @@ export default function AdminProductForm() {
   const [isFeatured, setIsFeatured] = useState(false);
 
   const [images, setImages] = useState<EditableImageItem[]>([]);
+  const [removedUrls, setRemovedUrls] = useState<string[]>([]);
   const [tiers, setTiers] = useState<EditablePriceTier[]>([
     { min_qty: 1, unit_price: 0 },
   ]);
@@ -176,13 +178,19 @@ export default function AdminProductForm() {
         },
         id,
       );
+      const keptUrls = new Set(images.map((i) => i.image_url));
+      const toDelete = Array.from(new Set(removedUrls)).filter(
+        (u) => !keptUrls.has(u),
+      );
+      await Promise.all(toDelete.map((u) => deleteStorageImageByPublicUrl(u)));
+
       await queryClient.invalidateQueries({ queryKey: ['products'] });
       await queryClient.invalidateQueries({ queryKey: ['product'] });
       await queryClient.invalidateQueries({ queryKey: ['dashboard_counts'] });
       showToast(isEdit ? 'Product saved' : 'Product created');
       navigate('/admin/products');
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Failed to save product');
+      setFormError(getErrorMessage(err, 'Failed to save product'));
     } finally {
       setSaving(false);
     }
@@ -329,6 +337,9 @@ export default function AdminProductForm() {
             images={images}
             onChange={setImages}
             pathPrefix={`products/${id || 'new'}`}
+            onRemovedUrl={(url) =>
+              setRemovedUrls((prev) => (prev.includes(url) ? prev : [...prev, url]))
+            }
           />
         </div>
 

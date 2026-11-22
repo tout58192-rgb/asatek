@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { ClipboardList, Menu, X } from 'lucide-react';
 import { useI18n } from '../../contexts/LanguageContext';
@@ -12,9 +12,14 @@ export function Header() {
   const { totalCount } = useQuote();
   const { data: settings } = useSettings();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [logoFailed, setLogoFailed] = useState(false);
 
   const siteName = pickSetting(settings, 'site_name', lang, t('common.brandName'));
   const logoUrl = pickSetting(settings, 'logo_url', 'en', '');
+
+  useEffect(() => {
+    setLogoFailed(false);
+  }, [logoUrl]);
 
   const navItems = [
     { to: '/', label: t('nav.home'), end: true },
@@ -34,11 +39,12 @@ export function Header() {
           to="/"
           className="inline-flex items-center gap-2.5 whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--brand-red)] rounded"
         >
-          {logoUrl ? (
+          {logoUrl && !logoFailed ? (
             <img
               src={logoUrl}
               alt={siteName}
               referrerPolicy="no-referrer"
+              onError={() => setLogoFailed(true)}
               className="h-9 w-9 rounded-full object-contain border border-[var(--line)]"
             />
           ) : (

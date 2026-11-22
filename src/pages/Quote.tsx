@@ -20,7 +20,7 @@ import { useI18n } from '../contexts/LanguageContext';
 import { useQuote } from '../contexts/QuoteContext';
 import { useToast } from '../contexts/ToastContext';
 import { useSettings } from '../hooks/useSettings';
-import { formatPKR } from '../lib/format';
+import { formatPKR, getErrorMessage } from '../lib/format';
 import { pickSetting } from '../lib/i18n';
 import { estimateLineTotal } from '../lib/pricing';
 import { buyerOrderSchema, type BuyerOrderFormValues } from '../lib/validation';
@@ -33,7 +33,7 @@ interface SuccessState {
   reference: string;
   channel: InquiryChannel;
   whatsappUrl?: string;
-  saveFailedNotice?: boolean;
+  saveFailedNotice?: string;
 }
 
 export default function Quote() {
@@ -46,6 +46,7 @@ export default function Quote() {
   const [submittingChannel, setSubmittingChannel] = useState<InquiryChannel | null>(
     null,
   );
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [success, setSuccess] = useState<SuccessState | null>(null);
 
   const productIds = items.map((i) => i.product_id);
@@ -111,6 +112,7 @@ export default function Quote() {
       }
 
       setSubmittingChannel(channel);
+      setSubmitError(null);
 
       const whatsappLines = items.map((entry) => {
         const p = productMap.get(entry.product_id);
@@ -164,7 +166,8 @@ export default function Quote() {
           channel,
           whatsappUrl: waUrl,
         });
-      } catch {
+      } catch (err) {
+        const errMsg = getErrorMessage(err, t('quote.submitError'));
         if (channel === 'whatsapp' && whatsappNumber) {
           const msg = buildOrderWhatsAppMessage({
             reference: 'NEW-ORDER',
@@ -188,10 +191,11 @@ export default function Quote() {
             reference: 'WHATSAPP-DIRECT',
             channel: 'whatsapp',
             whatsappUrl: waUrl,
-            saveFailedNotice: true,
+            saveFailedNotice: errMsg,
           });
         } else {
-          showToast(t('quote.submitError'), 'error');
+          setSubmitError(errMsg);
+          showToast(errMsg, 'error');
         }
       } finally {
         setSubmittingChannel(null);
@@ -222,7 +226,7 @@ export default function Quote() {
             </div>
             <p className="text-sm sm:text-base text-[var(--ink-soft)] max-w-md mx-auto">
               {success.saveFailedNotice
-                ? t('quote.whatsappSaveWarning')
+                ? `${t('quote.whatsappSaveWarning')} (${success.saveFailedNotice})`
                 : success.channel === 'whatsapp'
                   ? t('quote.successWhatsappNote')
                   : t('quote.successBody')}
@@ -492,6 +496,15 @@ export default function Quote() {
                   error={errors.message?.message}
                   {...register('message')}
                 />
+
+                {submitError && (
+                  <div
+                    role="alert"
+                    className="rounded-lg border border-red-200 bg-[var(--brand-red-light)] px-3.5 py-2.5 text-xs font-medium text-[var(--brand-red-dark)]"
+                  >
+                    {submitError}
+                  </div>
+                )}
 
                 <div className="pt-2 space-y-3">
                   <Button

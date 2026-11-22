@@ -10,6 +10,7 @@ import { WhatsAppIcon } from '../components/ui/WhatsAppIcon';
 import { useI18n } from '../contexts/LanguageContext';
 import { useToast } from '../contexts/ToastContext';
 import { useSettings } from '../hooks/useSettings';
+import { getErrorMessage } from '../lib/format';
 import { pickSetting } from '../lib/i18n';
 import { contactFormSchema, type ContactFormValues } from '../lib/validation';
 import { buildWhatsAppLink } from '../lib/whatsapp';
@@ -63,8 +64,8 @@ export default function Contact() {
       await queryClient.invalidateQueries({ queryKey: ['inquiries'] });
       await queryClient.invalidateQueries({ queryKey: ['dashboard_counts'] });
       showToast(t('contact.successToast', { ref: res.reference }), 'success');
-    } catch {
-      showToast(t('contact.errorToast'), 'error');
+    } catch (err) {
+      showToast(getErrorMessage(err, t('contact.errorToast')), 'error');
     } finally {
       setSubmitting(false);
     }

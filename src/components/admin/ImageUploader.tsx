@@ -1,7 +1,5 @@
-import { useState } from 'react';
-import { ArrowDown, ArrowUp, Plus, Star, Trash2, Upload } from 'lucide-react';
-import { uploadStorageImage } from '../../services/storage';
-import { Button } from '../ui/Button';
+import { ArrowDown, ArrowUp, ImageOff, Star, Trash2 } from 'lucide-react';
+import { ImageInput } from './ImageInput';
 
 export interface EditableImageItem {
   image_url: string;
@@ -13,17 +11,15 @@ interface ImageUploaderProps {
   images: EditableImageItem[];
   onChange: (next: EditableImageItem[]) => void;
   pathPrefix: string;
+  onRemovedUrl?: (url: string) => void;
 }
 
 export function ImageUploader({
   images,
   onChange,
   pathPrefix,
+  onRemovedUrl,
 }: ImageUploaderProps) {
-  const [urlInput, setUrlInput] = useState('');
-  const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
   const normalize = (list: EditableImageItem[]): EditableImageItem[] => {
     const hasPrimary = list.some((i) => i.is_primary);
     return list.map((item, idx) => ({
@@ -33,53 +29,13 @@ export function ImageUploader({
     }));
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    setError(null);
-    setUploading(true);
-    try {
-      const added: EditableImageItem[] = [];
-      for (const file of Array.from(files)) {
-        const publicUrl = await uploadStorageImage(
-          'product-images',
-          pathPrefix,
-          file,
-        );
-        added.push({
-          image_url: publicUrl,
-          sort_order: images.length + added.length,
-          is_primary: images.length === 0 && added.length === 0,
-        });
-      }
-      onChange(normalize([...images, ...added]));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed');
-    } finally {
-      setUploading(false);
-      e.target.value = '';
-    }
-  };
-
-  const handleAddUrl = () => {
-    const trimmed = urlInput.trim();
-    if (!trimmed) return;
-    if (!/^https?:\/\/.+/i.test(trimmed)) {
-      setError('Enter a valid https:// or http:// image URL');
-      return;
-    }
-    setError(null);
-    onChange(
-      normalize([
-        ...images,
-        {
-          image_url: trimmed,
-          sort_order: images.length,
-          is_primary: images.length === 0,
-        },
-      ]),
-    );
-    setUrlInput('');
+  const handleAddUrls = (urls: string[]) => {
+    const added: EditableImageItem[] = urls.map((url, idx) => ({
+      image_url: url,
+      sort_order: images.length + idx,
+      is_primary: images.length === 0 && idx === 0,
+    }));
+    onChange(normalize([...images, ...added]));
   };
 
   const setPrimary = (index: number) => {
@@ -101,44 +57,28 @@ export function ImageUploader({
   };
 
   const remove = (index: number) => {
+    const target = images[index];
     const copy = images.filter((_, i) => i !== index);
     onChange(normalize(copy));
+    if (target?.image_url) {
+      onRemovedUrl?.(target.image_url);
+    }
   };
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row gap-3">
-        <label className="inline-flex items-center justify-center gap-2 min-h-[44px] px-4 py-2 rounded-lg border border-[var(--line)] bg-[var(--bg-alt)] text-sm font-medium text-[var(--ink)] hover:border-[var(--brand-red)] cursor-pointer whitespace-nowrap">
-          <Upload className="w-4 h-4 text-[var(--brand-red)]" />
-          <span>{uploading ? 'Uploading...' : 'Upload Photos'}</span>
-          <input
-            type="file"
-            accept="image/*"
-            multiple
-            disabled={uploading}
-            onChange={handleFileChange}
-            className="hidden"
-          />
-        </label>
-
-        <div className="flex flex-1 gap-2">
-          <input
-            type="url"
-            value={urlInput}
-            onChange={(e) => setUrlInput(e.target.value)}
-            placeholder="Or paste external image URL (https://...)"
-            className="flex-1 min-h-[44px] rounded-lg border border-[var(--line)] bg-white px-3.5 py-2 text-sm focus:outline-none focus:border-[var(--brand-red)]"
-          />
-          <Button type="button" variant="secondary" onClick={handleAddUrl}>
-            <Plus className="w-4 h-4" />
-            <span>Add URL</span>
-          </Button>
-        </div>
-      </div>
-
-      {error && (
-        <p className="text-xs font-medium text-[var(--brand-red)]">{error}</p>
-      )}
+      <ImageInput
+        value=""
+        onChange={(url) => {
+          if (url) handleAddUrls([url]);
+        }}
+        bucket="product-images"
+        pathPrefix={pathPrefix}
+        clearAfterPick
+        multipleFiles
+        onMultipleUploaded={handleAddUrls}
+        helperText="Upload multiple product photos (auto-resized up to 1600px, max 2 MB) or paste external URLs."
+      />
 
       {images.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -151,13 +91,18 @@ export function ImageUploader({
                   : 'border-[var(--line)]'
               }`}
             >
-              <div className="aspect-square rounded-lg overflow-hidden bg-[var(--bg-alt)]">
+              <div className="aspect-square rounded-lg overflow-hidden bg-[var(--bg-alt)] flex items-center justify-center">
                 <img
                   src={img.image_url}
                   alt={`Product ${idx + 1}`}
+                  loading="lazy"
                   referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
                   className="w-full h-full object-cover"
                 />
+                <ImageOff className="w-5 h-5 text-[var(--ink-soft)] hidden" />
               </div>
               <div className="flex items-center justify-between gap-1">
                 <button

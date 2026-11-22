@@ -14,7 +14,7 @@ import { Select } from '../../components/ui/Select';
 import { WhatsAppIcon } from '../../components/ui/WhatsAppIcon';
 import { useToast } from '../../contexts/ToastContext';
 import { useInquiry } from '../../hooks/useInquiries';
-import { formatDateTime, formatPKR } from '../../lib/format';
+import { formatDateTime, formatPKR, getErrorMessage } from '../../lib/format';
 import { buildWhatsAppLink } from '../../lib/whatsapp';
 import { deleteInquiry, updateInquiry } from '../../services/inquiries';
 import type { InquiryStatus } from '../../types/db';
@@ -25,7 +25,7 @@ export default function AdminInquiryDetail() {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
 
-  const { data: inquiry, isLoading } = useInquiry(id);
+  const { data: inquiry, isLoading, isError, error, refetch } = useInquiry(id);
   const [status, setStatus] = useState<InquiryStatus>('new');
   const [adminNote, setAdminNote] = useState('');
   const [saving, setSaving] = useState(false);
@@ -51,8 +51,8 @@ export default function AdminInquiryDetail() {
       await queryClient.invalidateQueries({ queryKey: ['inquiry', inquiry.id] });
       await queryClient.invalidateQueries({ queryKey: ['dashboard_counts'] });
       showToast('Inquiry status & note saved');
-    } catch {
-      showToast('Could not update inquiry', 'error');
+    } catch (err) {
+      showToast(getErrorMessage(err, 'Could not update inquiry'), 'error');
     } finally {
       setSaving(false);
     }
@@ -66,8 +66,8 @@ export default function AdminInquiryDetail() {
       await queryClient.invalidateQueries({ queryKey: ['dashboard_counts'] });
       showToast('Inquiry deleted');
       navigate('/admin/inquiries');
-    } catch {
-      showToast('Failed to delete inquiry', 'error');
+    } catch (err) {
+      showToast(getErrorMessage(err, 'Failed to delete inquiry'), 'error');
     }
   };
 
@@ -75,6 +75,21 @@ export default function AdminInquiryDetail() {
     return (
       <AdminLayout title="Loading Inquiry...">
         <div className="h-64 rounded-xl skeleton-shimmer" />
+      </AdminLayout>
+    );
+  }
+
+  if (isError) {
+    return (
+      <AdminLayout title="Error Loading Inquiry">
+        <div className="rounded-xl border border-red-200 bg-[var(--brand-red-light)] p-6 text-center space-y-4">
+          <p className="text-sm text-[var(--brand-red-dark)]">
+            {getErrorMessage(error, 'Could not load inquiry details.')}
+          </p>
+          <Button type="button" variant="primary" onClick={() => void refetch()}>
+            Retry
+          </Button>
+        </div>
       </AdminLayout>
     );
   }
@@ -101,13 +116,17 @@ export default function AdminInquiryDetail() {
 
   // Format Pakistani local phone 03xx -> 923xx for WhatsApp reply convenience
   const cleanBuyerDigits = inquiry.phone.replace(/\D/g, '');
+  const hasRealBuyerPhone =
+    cleanBuyerDigits.length >= 10 && !/^0+$/.test(cleanBuyerDigits);
   const replyDigits = cleanBuyerDigits.startsWith('0')
     ? `92${cleanBuyerDigits.slice(1)}`
     : cleanBuyerDigits;
-  const replyWhatsappHref = buildWhatsAppLink(
-    replyDigits,
-    `Assalam o Alaikum ${inquiry.name}, regarding your ASATEK request ${inquiry.reference}:`,
-  );
+  const replyWhatsappHref = hasRealBuyerPhone
+    ? buildWhatsAppLink(
+        replyDigits,
+        `Assalam o Alaikum ${inquiry.name}, regarding your ASATEK request ${inquiry.reference}:`,
+      )
+    : null;
 
   return (
     <AdminLayout title={`Inquiry ${inquiry.reference}`}>
@@ -121,15 +140,17 @@ export default function AdminInquiryDetail() {
           </Link>
 
           <div className="flex items-center gap-2">
-            <a
-              href={replyWhatsappHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 min-h-[40px] px-4 py-2 rounded-lg bg-[var(--whatsapp)] text-white text-sm font-medium hover:bg-[var(--whatsapp-dark)]"
-            >
-              <WhatsAppIcon className="w-4 h-4" />
-              <span>Open in WhatsApp</span>
-            </a>
+            {replyWhatsappHref && (
+              <a
+                href={replyWhatsappHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 min-h-[40px] px-4 py-2 rounded-lg bg-[var(--whatsapp)] text-white text-sm font-medium hover:bg-[var(--whatsapp-dark)]"
+              >
+                <WhatsAppIcon className="w-4 h-4" />
+                <span>Open in WhatsApp</span>
+              </a>
+            )}
 
             <Button
               type="button"
@@ -170,7 +191,7 @@ export default function AdminInquiryDetail() {
                 <div>
                   <dt className="text-xs text-[var(--ink-soft)]">Phone / WhatsApp</dt>
                   <dd className="font-semibold tabular-nums text-[var(--ink)]">
-                    {inquiry.phone}
+                    {hasRealBuyerPhone ? inquiry.phone : '—'}
                   </dd>
                 </div>
                 <div>

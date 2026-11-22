@@ -52,7 +52,9 @@ export function buildProductWhatsAppMessage(params: {
   name: string;
   sku: string;
   quantity?: number;
+  productUrl?: string;
 }): string {
-  const qtyText = params.quantity ? `\nQuantity needed: ${params.quantity}` : '';
-  return `Assalam o Alaikum ASATEK,\nI would like wholesale details and rates for:\n${params.name} (${params.sku})${qtyText}`;
+  const qtyText = params.quantity ? `\nQuantity: ${params.quantity}` : '';
+  const urlText = params.productUrl ? `\nLink: ${params.productUrl}` : '';
+  return `Assalam o Alaikum ASATEK,\nI would like to order:\n${params.name} (${params.sku})${qtyText}${urlText}`;
 }

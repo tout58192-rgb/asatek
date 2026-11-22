@@ -182,30 +182,38 @@ export async function getDashboardCounts(): Promise<DashboardCounts> {
 
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400 * 1000).toISOString();
 
-  const [totalProdRes, activeProdRes, newInqRes, weekInqRes] = await Promise.all([
-    supabase.from('products').select('id', { count: 'exact', head: true }),
-    supabase
-      .from('products')
-      .select('id', { count: 'exact', head: true })
-      .eq('is_active', true),
-    supabase
-      .from('inquiries')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'new'),
-    supabase
-      .from('inquiries')
-      .select('id', { count: 'exact', head: true })
-      .gte('created_at', sevenDaysAgo),
-  ]);
+  const [totalProdRes, activeProdRes, newOrdRes, newInqRes, weekInqRes] =
+    await Promise.all([
+      supabase.from('products').select('id', { count: 'exact', head: true }),
+      supabase
+        .from('products')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_active', true),
+      supabase
+        .from('inquiries')
+        .select('id', { count: 'exact', head: true })
+        .eq('type', 'quote')
+        .eq('status', 'new'),
+      supabase
+        .from('inquiries')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'new'),
+      supabase
+        .from('inquiries')
+        .select('id', { count: 'exact', head: true })
+        .gte('created_at', sevenDaysAgo),
+    ]);
 
   if (totalProdRes.error) throw totalProdRes.error;
   if (activeProdRes.error) throw activeProdRes.error;
+  if (newOrdRes.error) throw newOrdRes.error;
   if (newInqRes.error) throw newInqRes.error;
   if (weekInqRes.error) throw weekInqRes.error;
 
   return {
     total_products: totalProdRes.count ?? 0,
     active_products: activeProdRes.count ?? 0,
+    new_orders: newOrdRes.count ?? 0,
     new_inquiries: newInqRes.count ?? 0,
     inquiries_last_7_days: weekInqRes.count ?? 0,
   };

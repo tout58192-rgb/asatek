@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowDown, ArrowUp, Edit2, Plus, Trash2 } from 'lucide-react';
 import { AdminLayout } from '../../components/admin/AdminLayout';
+import { ImageInput } from '../../components/admin/ImageInput';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { CategoryIcon } from '../../components/ui/CategoryIcon';
@@ -11,12 +12,13 @@ import { Select } from '../../components/ui/Select';
 import { TableRowSkeleton } from '../../components/ui/Skeleton';
 import { useToast } from '../../contexts/ToastContext';
 import { useCategories } from '../../hooks/useCategories';
-import { slugify } from '../../lib/format';
+import { getErrorMessage, slugify } from '../../lib/format';
 import {
   createCategory,
   deleteCategory,
   updateCategory,
 } from '../../services/categories';
+import { deleteStorageImageByPublicUrl } from '../../services/storage';
 import type { Category } from '../../types/db';
 
 const ICON_OPTIONS = [
@@ -96,6 +98,9 @@ export default function AdminCategories() {
 
       if (editing) {
         await updateCategory(editing.id, payload);
+        if (editing.image_url && editing.image_url !== payload.image_url) {
+          await deleteStorageImageByPublicUrl(editing.image_url);
+        }
         showToast('Category updated');
       } else {
         await createCategory(payload);
@@ -104,7 +109,7 @@ export default function AdminCategories() {
       await invalidate();
       setModalOpen(false);
     } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Save failed', 'error');
+      showToast(getErrorMessage(err, 'Save failed'), 'error');
     } finally {
       setSaving(false);
     }
@@ -132,10 +137,7 @@ export default function AdminCategories() {
       await invalidate();
       showToast('Category deleted');
     } catch (err) {
-      showToast(
-        err instanceof Error ? err.message : 'Could not delete category',
-        'error',
-      );
+      showToast(getErrorMessage(err, 'Could not delete category'), 'error');
     }
   };
 
@@ -200,9 +202,19 @@ export default function AdminCategories() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5 font-medium text-[var(--ink)]">
-                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--brand-red-light)] text-[var(--brand-red)]">
-                          <CategoryIcon name={cat.icon} className="w-4 h-4" />
-                        </span>
+                        {cat.image_url ? (
+                          <img
+                            src={cat.image_url}
+                            alt={cat.name_en}
+                            loading="lazy"
+                            referrerPolicy="no-referrer"
+                            className="h-8 w-8 rounded-lg object-cover border border-[var(--line)] bg-[var(--bg-alt)] shrink-0"
+                          />
+                        ) : (
+                          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--brand-red-light)] text-[var(--brand-red)] shrink-0">
+                            <CategoryIcon name={cat.icon} className="w-4 h-4" />
+                          </span>
+                        )}
                         <span>{cat.name_en}</span>
                       </div>
                     </td>
@@ -302,12 +314,15 @@ export default function AdminCategories() {
             />
           </div>
 
-          <Input
-            label="Image URL (Optional)"
-            type="url"
+          <ImageInput
+            label="Category Image (Optional)"
             value={imageUrl}
-            onChange={(e) => setImageUrl(e.target.value)}
-            placeholder="https://..."
+            onChange={setImageUrl}
+            bucket="product-images"
+            pathPrefix={`categories/${editing?.id || 'new'}`}
+            fileNameHint={slug || nameEn || 'category'}
+            aspect="square"
+            deleteOnRemove={false}
           />
 
           <label className="flex items-center gap-2.5 text-sm font-medium text-[var(--ink)] cursor-pointer">

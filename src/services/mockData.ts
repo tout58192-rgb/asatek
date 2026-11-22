@@ -1,6 +1,7 @@
 import type {
   Category,
   DashboardCounts,
+  HomeBanner,
   InquiryWithItems,
   ProductWithDetails,
   SiteSettingsMap,
@@ -589,6 +590,7 @@ export const mockSettings: SiteSettingsMap = {
   },
   hero_image_url: { value_en: '', value_ur: '' },
   about_image_url: { value_en: '', value_ur: '' },
+  favicon_url: { value_en: '', value_ur: '' },
 };
 
 export const mockInquiries: InquiryWithItems[] = [
@@ -674,6 +676,7 @@ export interface MockStoreShape {
   categories: Category[];
   products: ProductWithDetails[];
   settings: SiteSettingsMap;
+  banners: HomeBanner[];
   inquiries: InquiryWithItems[];
   seqCounter: number;
 }
@@ -688,6 +691,7 @@ function createInitialMockStore(): MockStoreShape {
       specs: [...p.specs],
     })),
     settings: { ...mockSettings },
+    banners: [],
     inquiries: mockInquiries.map((i) => ({ ...i, items: [...i.items] })),
     seqCounter: 4,
   };
@@ -706,6 +710,7 @@ function loadMockStore(): MockStoreShape {
       categories: Array.isArray(parsed.categories) ? parsed.categories : defaults.categories,
       products: Array.isArray(parsed.products) ? parsed.products : defaults.products,
       settings: parsed.settings ? parsed.settings : defaults.settings,
+      banners: Array.isArray(parsed.banners) ? parsed.banners : defaults.banners,
       inquiries: Array.isArray(parsed.inquiries) ? parsed.inquiries : defaults.inquiries,
       seqCounter: typeof parsed.seqCounter === 'number' ? parsed.seqCounter : defaults.seqCounter,
     };
@@ -730,6 +735,9 @@ export function getMockDashboardCounts(): DashboardCounts {
   return {
     total_products: mockStore.products.length,
     active_products: mockStore.products.filter((p) => p.is_active).length,
+    new_orders: mockStore.inquiries.filter(
+      (i) => i.type === 'quote' && i.status === 'new',
+    ).length,
     new_inquiries: mockStore.inquiries.filter((i) => i.status === 'new').length,
     inquiries_last_7_days: mockStore.inquiries.filter(
       (i) => new Date(i.created_at).getTime() >= sevenDaysAgo,

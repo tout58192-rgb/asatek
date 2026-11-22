@@ -1,19 +1,14 @@
 import { Link } from 'react-router-dom';
-import { Plus } from 'lucide-react';
 import { useI18n } from '../../contexts/LanguageContext';
-import { useQuote } from '../../contexts/QuoteContext';
-import { useToast } from '../../contexts/ToastContext';
 import { formatPKR } from '../../lib/format';
 import { getLowestUnitPrice } from '../../lib/pricing';
 import type { ProductWithDetails } from '../../types/db';
 import { AvailabilityBadge } from '../ui/Badge';
-import { Button } from '../ui/Button';
+import { ProductActions } from './ProductActions';
 import { ProductImageSlot } from './ProductImageSlot';
 
 export function ProductCard({ product }: { product: ProductWithDetails }) {
   const { t, pick } = useI18n();
-  const { addItem } = useQuote();
-  const { showToast } = useToast();
 
   const name = pick(product as unknown as Record<string, unknown>, 'name');
   const categoryName = product.category
@@ -24,22 +19,6 @@ export function ProductCard({ product }: { product: ProductWithDetails }) {
     product.images[0]?.image_url ||
     null;
   const lowestPrice = getLowestUnitPrice(product.price_tiers);
-
-  const handleAdd = () => {
-    addItem({
-      product_id: product.id,
-      quantity: product.moq,
-      snapshot_name_en: product.name_en,
-      snapshot_name_ur: product.name_ur,
-      snapshot_sku: product.sku,
-      snapshot_moq: product.moq,
-      snapshot_image_url: primaryImage,
-    });
-    showToast(t('common.addedToOrder'), 'success', {
-      label: t('common.viewOrderList'),
-      to: '/quote',
-    });
-  };
 
   return (
     <article className="group flex flex-col rounded-xl border border-[var(--line)] bg-white overflow-hidden transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md">
@@ -69,7 +48,7 @@ export function ProductCard({ product }: { product: ProductWithDetails }) {
           {name}
         </Link>
 
-        <div className="mt-3 pt-3 border-t border-[var(--line)] space-y-2">
+        <div className="mt-auto pt-3 border-t border-[var(--line)] space-y-2.5">
           <div className="flex items-baseline justify-between gap-2">
             <div>
               {lowestPrice !== null ? (
@@ -92,16 +71,7 @@ export function ProductCard({ product }: { product: ProductWithDetails }) {
             <AvailabilityBadge status={product.availability} />
           </div>
 
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={handleAdd}
-            className="w-full"
-            aria-label={`${t('common.addToOrder')}: ${name}`}
-          >
-            <Plus className="w-4 h-4" />
-            <span>{t('common.addToOrder')}</span>
-          </Button>
+          <ProductActions product={product} size="sm" />
         </div>
       </div>
     </article>

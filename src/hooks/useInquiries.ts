@@ -11,6 +11,7 @@ export function useInquiries(filters: InquiryListFilters = {}) {
     queryKey: ['inquiries', filters],
     queryFn: () => listInquiries(filters),
     staleTime: 0,
+    refetchInterval: 30_000,
   });
 }
 
@@ -28,5 +29,6 @@ export function useDashboardCounts() {
     queryKey: ['dashboard_counts'],
     queryFn: getDashboardCounts,
     staleTime: 0,
+    refetchInterval: 30_000,
   });
 }

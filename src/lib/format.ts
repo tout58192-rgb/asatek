@@ -48,3 +48,14 @@ export function slugify(input: string): string {
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');
 }
+
+export function getErrorMessage(err: unknown, fallback = 'Request failed'): string {
+  if (err instanceof Error && err.message.trim()) {
+    return err.message;
+  }
+  if (err && typeof err === 'object' && 'message' in err) {
+    const msg = String((err as { message?: unknown }).message ?? '').trim();
+    if (msg) return msg;
+  }
+  return fallback;
+}

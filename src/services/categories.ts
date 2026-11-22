@@ -1,6 +1,7 @@
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
 import type { Category } from '../types/db';
 import { mockStore, saveMockStore } from './mockData';
+import { deleteStorageImageByPublicUrl } from './storage';
 
 export async function listCategories(includeInactive = false): Promise<Category[]> {
   if (!isSupabaseConfigured || !supabase) {
@@ -110,6 +111,17 @@ export async function deleteCategory(id: string): Promise<void> {
     throw new Error('Move or delete its products first');
   }
 
+  const { data: catRow } = await supabase
+    .from('categories')
+    .select('image_url')
+    .eq('id', id)
+    .maybeSingle();
+
   const { error } = await supabase.from('categories').delete().eq('id', id);
   if (error) throw error;
+
+  const imgUrl = (catRow as { image_url?: string | null } | null)?.image_url;
+  if (imgUrl) {
+    await deleteStorageImageByPublicUrl(imgUrl);
+  }
 }

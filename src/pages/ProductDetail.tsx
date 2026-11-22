@@ -3,29 +3,21 @@ import { Link, useParams } from 'react-router-dom';
 import { AlertTriangle, ChevronRight, Minus, Plus } from 'lucide-react';
 import { Layout } from '../components/layout/Layout';
 import { PriceSlabTable } from '../components/product/PriceSlabTable';
+import { ProductActions } from '../components/product/ProductActions';
 import { ProductCard } from '../components/product/ProductCard';
 import { ProductGallery } from '../components/product/ProductGallery';
 import { SpecsTable } from '../components/product/SpecsTable';
 import { AvailabilityBadge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { EmptyState } from '../components/ui/EmptyState';
-import { WhatsAppIcon } from '../components/ui/WhatsAppIcon';
 import { useI18n } from '../contexts/LanguageContext';
-import { useQuote } from '../contexts/QuoteContext';
-import { useToast } from '../contexts/ToastContext';
 import { useProductBySlug, useRelatedProducts } from '../hooks/useProduct';
-import { useSettings } from '../hooks/useSettings';
 import { formatPKR } from '../lib/format';
-import { pickSetting } from '../lib/i18n';
 import { estimateLineTotal } from '../lib/pricing';
-import { buildProductWhatsAppMessage, buildWhatsAppLink } from '../lib/whatsapp';
 
 export default function ProductDetail() {
   const { slug } = useParams<{ slug: string }>();
   const { t, pick } = useI18n();
-  const { addItem } = useQuote();
-  const { showToast } = useToast();
-  const { data: settings } = useSettings();
 
   const { data: product, isLoading, isError, refetch } = useProductBySlug(slug);
   const { data: related } = useRelatedProducts(product?.category_id, product?.id);
@@ -95,41 +87,8 @@ export default function ProductDetail() {
   const categoryName = product.category
     ? pick(product.category as unknown as Record<string, unknown>, 'name')
     : '';
-  const primaryImage =
-    product.images.find((i) => i.is_primary)?.image_url ||
-    product.images[0]?.image_url ||
-    null;
-
   const safeQty = Math.max(product.moq, quantity || product.moq);
   const { unitPrice, lineTotal } = estimateLineTotal(product.price_tiers, safeQty);
-
-  const whatsappNumber = pickSetting(settings, 'whatsapp_number', 'en', '');
-  const whatsappUrl = whatsappNumber
-    ? buildWhatsAppLink(
-        whatsappNumber,
-        buildProductWhatsAppMessage({
-          name: product.name_en,
-          sku: product.sku,
-          quantity: safeQty,
-        }),
-      )
-    : '#';
-
-  const handleAdd = () => {
-    addItem({
-      product_id: product.id,
-      quantity: safeQty,
-      snapshot_name_en: product.name_en,
-      snapshot_name_ur: product.name_ur,
-      snapshot_sku: product.sku,
-      snapshot_moq: product.moq,
-      snapshot_image_url: primaryImage,
-    });
-    showToast(t('common.addedToOrder'), 'success', {
-      label: t('common.viewOrderList'),
-      to: '/quote',
-    });
-  };
 
   return (
     <Layout title={name} description={shortDesc || name}>
@@ -279,29 +238,7 @@ export default function ProductDetail() {
                 </div>
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-3 pt-1">
-                <Button
-                  variant="primary"
-                  size="lg"
-                  onClick={handleAdd}
-                  className="flex-1"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>{t('common.addToOrder')}</span>
-                </Button>
-
-                {whatsappNumber && (
-                  <a
-                    href={whatsappUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 inline-flex items-center justify-center gap-2 min-h-[48px] px-5 py-3 rounded-lg bg-[var(--whatsapp)] text-white font-medium text-sm sm:text-base hover:bg-[var(--whatsapp-dark)] transition-colors whitespace-nowrap"
-                  >
-                    <WhatsAppIcon className="w-5 h-5" />
-                    <span>{t('productDetail.askWhatsapp')}</span>
-                  </a>
-                )}
-              </div>
+              <ProductActions product={product} quantity={safeQty} size="lg" className="pt-1" />
             </div>
           </div>
         </div>

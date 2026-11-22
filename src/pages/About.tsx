@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Factory, MapPin, ShieldCheck, Wrench } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Layout } from '../components/layout/Layout';
@@ -19,6 +20,7 @@ const SERVICE_CITIES = [
 export default function About() {
   const { lang, t } = useI18n();
   const { data: settings } = useSettings();
+  const [imgFailed, setImgFailed] = useState(false);
 
   const aboutTitle = pickSetting(
     settings,
@@ -29,6 +31,10 @@ export default function About() {
   const aboutBody = pickSetting(settings, 'about_body', lang, '');
   const aboutImage = pickSetting(settings, 'about_image_url', 'en', '');
   const address = pickSetting(settings, 'address', lang, '');
+
+  useEffect(() => {
+    setImgFailed(false);
+  }, [aboutImage]);
 
   const capabilities = [
     { icon: ShieldCheck, title: t('about.cap1Title'), desc: t('about.cap1Desc') },
@@ -76,12 +82,14 @@ export default function About() {
           </div>
 
           <div className="lg:col-span-5">
-            {aboutImage ? (
-              <div className="aspect-[4/3] rounded-xl overflow-hidden border border-[var(--line)]">
+            {aboutImage && !imgFailed ? (
+              <div className="aspect-[4/3] rounded-xl overflow-hidden border border-[var(--line)] bg-[var(--bg-alt)]">
                 <img
                   src={aboutImage}
                   alt={aboutTitle}
+                  loading="lazy"
                   referrerPolicy="no-referrer"
+                  onError={() => setImgFailed(true)}
                   className="w-full h-full object-cover"
                 />
               </div>

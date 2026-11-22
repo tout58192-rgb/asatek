@@ -11,6 +11,7 @@ import type {
   ProductWithDetails,
 } from '../types/db';
 import { mockStore, saveMockStore } from './mockData';
+import { deleteStorageImageByPublicUrl } from './storage';
 
 function attachCategory(
   product: ProductWithDetails,
@@ -168,8 +169,12 @@ export async function listProducts(
 
 export async function listFeaturedProducts(limit = 8): Promise<ProductWithDetails[]> {
   if (!isSupabaseConfigured || !supabase) {
-    return mockStore.products
-      .filter((p) => p.is_active && p.is_featured)
+    const featured = mockStore.products.filter((p) => p.is_active && p.is_featured);
+    const list =
+      featured.length > 0
+        ? featured
+        : mockStore.products.filter((p) => p.is_active);
+    return list
       .slice(0, limit)
       .map((p) => attachCategory(p, mockStore.categories));
   }
@@ -191,7 +196,28 @@ export async function listFeaturedProducts(limit = 8): Promise<ProductWithDetail
     .limit(limit);
 
   if (error) throw error;
-  return ((data ?? []) as ProductWithDetails[]).map((p) => ({
+  let rows = (data ?? []) as ProductWithDetails[];
+
+  if (rows.length === 0) {
+    const { data: latestData, error: latestError } = await supabase
+      .from('products')
+      .select(
+        `
+        *,
+        category:categories(*),
+        images:product_images(*),
+        price_tiers:product_price_tiers(*),
+        specs:product_specs(*)
+      `,
+      )
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (latestError) throw latestError;
+    rows = (latestData ?? []) as ProductWithDetails[];
+  }
+
+  return rows.map((p) => ({
     ...p,
     images: [...(p.images ?? [])].sort((a, b) => a.sort_order - b.sort_order),
     price_tiers: sortTiers(p.price_tiers ?? []),
@@ -561,6 +587,15 @@ export async function deleteProduct(id: string): Promise<void> {
     return;
   }
 
+  const { data: imgs } = await supabase
+    .from('product_images')
+    .select('image_url')
+    .eq('product_id', id);
+
   const { error } = await supabase.from('products').delete().eq('id', id);
   if (error) throw error;
+
+  for (const row of (imgs ?? []) as Array<{ image_url: string }>) {
+    await deleteStorageImageByPublicUrl(row.image_url);
+  }
 }
