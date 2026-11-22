@@ -25,12 +25,14 @@ import { pickSetting } from '../lib/i18n';
 import { estimateLineTotal } from '../lib/pricing';
 import { buyerOrderSchema, type BuyerOrderFormValues } from '../lib/validation';
 import { buildOrderWhatsAppMessage, buildWhatsAppLink } from '../lib/whatsapp';
+import { saveRecentOrder } from '../lib/recentOrders';
 import { submitInquiry } from '../services/inquiries';
 import { getProductsByIds } from '../services/products';
 import type { InquiryChannel } from '../types/db';
 
 interface SuccessState {
   reference: string;
+  phone: string;
   channel: InquiryChannel;
   whatsappUrl?: string;
   saveFailedNotice?: string;
@@ -102,7 +104,7 @@ export default function Quote() {
       // Honeypot silent success
       if (values.website && values.website.trim().length > 0) {
         clearQuote();
-        setSuccess({ reference: 'ASK-RECEIVED', channel });
+        setSuccess({ reference: 'ASK-RECEIVED', phone: values.phone, channel });
         return;
       }
 
@@ -158,11 +160,18 @@ export default function Quote() {
           document.body.removeChild(anchor);
         }
 
+        saveRecentOrder({
+          reference: result.reference,
+          phone: values.phone,
+          channel,
+        });
+
         clearQuote();
         await queryClient.invalidateQueries({ queryKey: ['inquiries'] });
         await queryClient.invalidateQueries({ queryKey: ['dashboard_counts'] });
         setSuccess({
           reference: result.reference,
+          phone: values.phone,
           channel,
           whatsappUrl: waUrl,
         });
@@ -189,6 +198,7 @@ export default function Quote() {
           clearQuote();
           setSuccess({
             reference: 'WHATSAPP-DIRECT',
+            phone: values.phone,
             channel: 'whatsapp',
             whatsappUrl: waUrl,
             saveFailedNotice: errMsg,
@@ -232,6 +242,13 @@ export default function Quote() {
                   : t('quote.successBody')}
             </p>
             <div className="flex flex-wrap justify-center gap-3 pt-2">
+              {!success.saveFailedNotice && success.reference !== 'ASK-RECEIVED' && (
+                <Link
+                  to={`/track?ref=${encodeURIComponent(success.reference)}&phone=${encodeURIComponent(success.phone)}`}
+                >
+                  <Button variant="secondary">{t('quote.trackYourOrder')}</Button>
+                </Link>
+              )}
               {success.whatsappUrl && (
                 <a
                   href={success.whatsappUrl}

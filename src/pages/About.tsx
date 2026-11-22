@@ -87,7 +87,10 @@ export default function About() {
                 <img
                   src={aboutImage}
                   alt={aboutTitle}
+                  width={800}
+                  height={600}
                   loading="lazy"
+                  decoding="async"
                   referrerPolicy="no-referrer"
                   onError={() => setImgFailed(true)}
                   className="w-full h-full object-cover"

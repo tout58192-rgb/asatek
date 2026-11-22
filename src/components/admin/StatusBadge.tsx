@@ -4,7 +4,11 @@ import { Badge } from '../ui/Badge';
 export function InquiryStatusBadge({ status }: { status: InquiryStatus }) {
   if (status === 'new') return <Badge tone="red">New</Badge>;
   if (status === 'contacted') return <Badge tone="amber">Contacted</Badge>;
-  return <Badge tone="green">Closed</Badge>;
+  if (status === 'confirmed') return <Badge tone="green">Confirmed</Badge>;
+  if (status === 'dispatched') return <Badge tone="amber">Dispatched</Badge>;
+  if (status === 'completed') return <Badge tone="green">Completed</Badge>;
+  if (status === 'skipped') return <Badge tone="red">Skipped</Badge>;
+  return <Badge tone="neutral">Closed</Badge>;
 }
 
 export function InquiryChannelBadge({ channel }: { channel: InquiryChannel }) {

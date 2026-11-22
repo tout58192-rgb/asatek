@@ -24,6 +24,7 @@ export function Header() {
   const navItems = [
     { to: '/', label: t('nav.home'), end: true },
     { to: '/products', label: t('nav.products') },
+    { to: '/track', label: t('nav.track') },
     { to: '/about', label: t('nav.about') },
     { to: '/contact', label: t('nav.contact') },
   ];
@@ -43,6 +44,10 @@ export function Header() {
             <img
               src={logoUrl}
               alt={siteName}
+              width={36}
+              height={36}
+              loading="lazy"
+              decoding="async"
               referrerPolicy="no-referrer"
               onError={() => setLogoFailed(true)}
               className="h-9 w-9 rounded-full object-contain border border-[var(--line)]"

@@ -6,7 +6,14 @@ export type InquiryType = 'quote' | 'contact';
 
 export type InquiryChannel = 'website' | 'whatsapp';
 
-export type InquiryStatus = 'new' | 'contacted' | 'closed';
+export type InquiryStatus =
+  | 'new'
+  | 'contacted'
+  | 'confirmed'
+  | 'dispatched'
+  | 'completed'
+  | 'skipped'
+  | 'closed';
 
 export interface Profile {
   id: string;
@@ -90,6 +97,10 @@ export interface Inquiry {
   status: InquiryStatus;
   admin_note: string | null;
   created_at: string;
+  status_updated_at?: string | null;
+  confirmed_at?: string | null;
+  total_amount?: number | null;
+  skip_reason?: string | null;
 }
 
 export interface InquiryItem {
@@ -104,6 +115,89 @@ export interface InquiryItem {
 
 export interface InquiryWithItems extends Inquiry {
   items: InquiryItem[];
+}
+
+export interface TrackedOrderItem {
+  product_id?: string | null;
+  product_name: string;
+  sku?: string | null;
+  quantity: number;
+  unit_price: number | null;
+}
+
+export interface TrackedOrder {
+  reference: string;
+  status: InquiryStatus;
+  created_at: string;
+  status_updated_at: string | null;
+  skip_reason: string | null;
+  total_amount: number | null;
+  items: TrackedOrderItem[];
+}
+
+export interface SalesSummaryTotals {
+  orders: number;
+  new_orders: number;
+  skipped_orders: number;
+  confirmed_orders: number;
+  revenue: number;
+  avg_order_value: number;
+}
+
+export interface SalesSummaryDailyPoint {
+  date: string;
+  orders: number;
+  revenue: number;
+}
+
+export interface SalesSummaryMonthlyPoint {
+  month: string;
+  orders: number;
+  revenue: number;
+}
+
+export interface SalesSummaryTopProduct {
+  name: string;
+  qty: number;
+  revenue: number;
+}
+
+export interface SalesSummaryTrendingProduct {
+  name: string;
+  qty: number;
+  orders: number;
+}
+
+export interface SalesSummaryByStatus {
+  status: InquiryStatus;
+  orders: number;
+}
+
+export interface SalesSummaryByChannel {
+  channel: InquiryChannel;
+  orders: number;
+  revenue: number;
+}
+
+export interface SalesSummaryByCity {
+  city: string;
+  orders: number;
+  revenue: number;
+}
+
+export interface AdminSalesSummary {
+  range: {
+    from: string;
+    to: string;
+  };
+  totals: SalesSummaryTotals;
+  daily: SalesSummaryDailyPoint[];
+  monthly: SalesSummaryMonthlyPoint[];
+  top_products: SalesSummaryTopProduct[];
+  trending_products: SalesSummaryTrendingProduct[];
+  by_status: SalesSummaryByStatus[];
+  by_channel: SalesSummaryByChannel[];
+  by_city: SalesSummaryByCity[];
 }
 
 export interface SiteSettingRow {

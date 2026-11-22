@@ -145,7 +145,10 @@ export default function Home() {
                   <img
                     src={heroImageUrl}
                     alt={heroTitle}
+                    width={800}
+                    height={600}
                     loading="lazy"
+                    decoding="async"
                     referrerPolicy="no-referrer"
                     onError={() => setHeroImgFailed(true)}
                     className="w-full h-full object-cover"
@@ -209,7 +212,10 @@ export default function Home() {
                     <img
                       src={currentBanner.image_url}
                       alt={pick(currentBanner as unknown as Record<string, unknown>, 'title') || 'ASATEK Banner'}
+                      width={800}
+                      height={450}
                       loading="lazy"
+                      decoding="async"
                       referrerPolicy="no-referrer"
                       onError={() =>
                         setFailedBannerImgs((prev) => ({ ...prev, [currentBanner.id]: true }))
@@ -358,7 +364,10 @@ export default function Home() {
                         <img
                           src={cat.image_url!}
                           alt={catName}
+                          width={48}
+                          height={48}
                           loading="lazy"
+                          decoding="async"
                           referrerPolicy="no-referrer"
                           onError={() =>
                             setFailedCatImgs((prev) => ({ ...prev, [cat.id]: true }))

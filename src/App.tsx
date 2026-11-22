@@ -5,18 +5,21 @@ import { AuthProvider } from './contexts/AuthContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { QuoteProvider } from './contexts/QuoteContext';
 import { ToastProvider } from './contexts/ToastContext';
-import About from './pages/About';
-import Contact from './pages/Contact';
-import Home from './pages/Home';
-import NotFound from './pages/NotFound';
-import ProductDetail from './pages/ProductDetail';
-import Products from './pages/Products';
-import Quote from './pages/Quote';
 import { ProtectedRoute } from './routes/ProtectedRoute';
 
-// Code-split admin pages into separate chunks
+// Route-level code splitting for public and admin chunks
+const Home = lazy(() => import('./pages/Home'));
+const Products = lazy(() => import('./pages/Products'));
+const ProductDetail = lazy(() => import('./pages/ProductDetail'));
+const Quote = lazy(() => import('./pages/Quote'));
+const Track = lazy(() => import('./pages/Track'));
+const About = lazy(() => import('./pages/About'));
+const Contact = lazy(() => import('./pages/Contact'));
+const NotFound = lazy(() => import('./pages/NotFound'));
+
 const AdminLogin = lazy(() => import('./pages/admin/Login'));
 const AdminDashboard = lazy(() => import('./pages/admin/Dashboard'));
+const AdminManagement = lazy(() => import('./pages/admin/Management'));
 const AdminCategories = lazy(() => import('./pages/admin/Categories'));
 const AdminProductsList = lazy(() => import('./pages/admin/ProductsList'));
 const AdminProductForm = lazy(() => import('./pages/admin/ProductForm'));
@@ -33,10 +36,10 @@ const queryClient = new QueryClient({
   },
 });
 
-function AdminFallback() {
+function RouteFallback() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--bg-alt)] text-sm text-[var(--ink-soft)]">
-      Loading admin...
+    <div className="min-h-screen flex items-center justify-center bg-white">
+      <div className="h-7 w-7 rounded-full border-2 border-[var(--brand-red)] border-t-transparent animate-spin" />
     </div>
   );
 }
@@ -49,13 +52,14 @@ export default function App() {
           <QuoteProvider>
             <BrowserRouter>
               <ToastProvider>
-                <Suspense fallback={<AdminFallback />}>
+                <Suspense fallback={<RouteFallback />}>
                   <Routes>
                     {/* Public Routes */}
                     <Route path="/" element={<Home />} />
                     <Route path="/products" element={<Products />} />
                     <Route path="/products/:slug" element={<ProductDetail />} />
                     <Route path="/quote" element={<Quote />} />
+                    <Route path="/track" element={<Track />} />
                     <Route path="/about" element={<About />} />
                     <Route path="/contact" element={<Contact />} />
 
@@ -66,6 +70,14 @@ export default function App() {
                       element={
                         <ProtectedRoute>
                           <AdminDashboard />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/admin/management"
+                      element={
+                        <ProtectedRoute>
+                          <AdminManagement />
                         </ProtectedRoute>
                       }
                     />

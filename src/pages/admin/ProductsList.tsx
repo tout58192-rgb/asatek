@@ -6,6 +6,7 @@ import { AdminLayout } from '../../components/admin/AdminLayout';
 import { ProductImageSlot } from '../../components/product/ProductImageSlot';
 import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
+import { Pagination } from '../../components/ui/Pagination';
 import { Select } from '../../components/ui/Select';
 import { TableRowSkeleton } from '../../components/ui/Skeleton';
 import { useToast } from '../../contexts/ToastContext';
@@ -23,6 +24,7 @@ import type { ProductWithDetails } from '../../types/db';
 export default function AdminProductsList() {
   const [q, setQ] = useState('');
   const [categorySlug, setCategorySlug] = useState('');
+  const [page, setPage] = useState(1);
   const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>(
     'all',
   );
@@ -37,7 +39,8 @@ export default function AdminProductsList() {
     categorySlug: categorySlug || undefined,
     q: q || undefined,
     includeInactive: true,
-    pageSize: 100,
+    page,
+    pageSize: 24,
   });
 
   const filteredItems = (result?.items ?? []).filter((p) => {
@@ -97,7 +100,10 @@ export default function AdminProductsList() {
               <input
                 type="search"
                 value={q}
-                onChange={(e) => setQ(e.target.value)}
+                onChange={(e) => {
+                  setQ(e.target.value);
+                  setPage(1);
+                }}
                 placeholder="Search name or SKU..."
                 className="w-full min-h-[44px] rounded-lg border border-[var(--line)] bg-white ps-10 pe-3.5 text-sm"
               />
@@ -107,7 +113,10 @@ export default function AdminProductsList() {
               <Select
                 aria-label="Filter by category"
                 value={categorySlug}
-                onChange={(e) => setCategorySlug(e.target.value)}
+                onChange={(e) => {
+                  setCategorySlug(e.target.value);
+                  setPage(1);
+                }}
               >
                 <option value="">All Categories</option>
                 {(categories ?? []).map((c) => (
@@ -263,6 +272,15 @@ export default function AdminProductsList() {
             </table>
           </div>
         </div>
+
+        {result && (
+          <Pagination
+            page={result.page}
+            pageSize={result.pageSize}
+            total={result.total}
+            onPageChange={setPage}
+          />
+        )}
       </div>
 
       <Modal

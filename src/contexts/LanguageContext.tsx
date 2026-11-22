@@ -58,6 +58,18 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     document.documentElement.lang = lang;
     document.documentElement.dir = dir;
     localStorage.setItem(STORAGE_KEY, lang);
+
+    if (lang === 'ur') {
+      const linkId = 'asatek-urdu-font';
+      if (!document.getElementById(linkId)) {
+        const link = document.createElement('link');
+        link.id = linkId;
+        link.rel = 'stylesheet';
+        link.href =
+          'https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;600;700&display=swap';
+        document.head.appendChild(link);
+      }
+    }
   }, [lang, dir]);
 
   const setLang = useCallback((next: Lang) => {

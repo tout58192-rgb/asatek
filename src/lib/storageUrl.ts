@@ -51,3 +51,46 @@ export function parseManagedStorageUrl(
     return null;
   }
 }
+
+/**
+ * Given a storage object path (e.g. "products/abc/123-img.webp"), returns the
+ * thumbnail object path ("products/abc/123-img_thumb.webp"). SVGs keep the same path.
+ */
+export function getThumbnailStoragePath(objectPath: string): string {
+  const dotIdx = objectPath.lastIndexOf('.');
+  if (dotIdx <= 0) return `${objectPath}_thumb`;
+  const base = objectPath.slice(0, dotIdx);
+  const ext = objectPath.slice(dotIdx);
+  if (ext.toLowerCase() === '.svg' || base.endsWith('_thumb')) {
+    return objectPath;
+  }
+  return `${base}_thumb${ext}`;
+}
+
+/**
+ * Converts a managed Supabase Storage public URL into its `_thumb` counterpart
+ * for fast card rendering. Pasted external URLs and SVGs are returned untouched.
+ */
+export function getThumbnailPublicUrl(
+  url: string | null | undefined,
+  supabaseUrl?: string,
+): string | null {
+  if (!url) return null;
+  const parsed = parseManagedStorageUrl(url, supabaseUrl);
+  if (!parsed) return url;
+
+  const thumbPath = getThumbnailStoragePath(parsed.path);
+  if (thumbPath === parsed.path) return url;
+
+  try {
+    const u = new URL(url);
+    const encodedThumb = thumbPath
+      .split('/')
+      .map((seg) => encodeURIComponent(seg))
+      .join('/');
+    u.pathname = `${PUBLIC_OBJECT_MARKER}${parsed.bucket}/${encodedThumb}`;
+    return u.toString();
+  } catch {
+    return url;
+  }
+}

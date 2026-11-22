@@ -1,6 +1,7 @@
 import { getApplicableSlab } from '../lib/pricing';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
 import type {
+  AdminSalesSummary,
   DashboardCounts,
   InquiryChannel,
   InquiryItem,
@@ -8,8 +9,15 @@ import type {
   InquiryWithItems,
   SubmitInquiryPayload,
   SubmitInquiryResult,
+  TrackedOrder,
 } from '../types/db';
-import { getMockDashboardCounts, mockStore, saveMockStore } from './mockData';
+import {
+  getMockAdminSalesSummary,
+  getMockDashboardCounts,
+  getMockTrackedOrder,
+  mockStore,
+  saveMockStore,
+} from './mockData';
 
 function generateMockReference(seq: number): string {
   const now = new Date();
@@ -50,6 +58,11 @@ export async function submitInquiry(
       };
     });
 
+    const totalAmount = items.reduce(
+      (sum, item) => sum + Number(item.unit_price ?? 0) * item.quantity,
+      0,
+    );
+
     const record: InquiryWithItems = {
       id,
       reference,
@@ -63,6 +76,10 @@ export async function submitInquiry(
       status: 'new',
       admin_note: null,
       created_at: now,
+      status_updated_at: now,
+      confirmed_at: null,
+      total_amount: totalAmount,
+      skip_reason: null,
       items,
     };
 
@@ -80,6 +97,8 @@ export interface InquiryListFilters {
   status?: InquiryStatus | 'all';
   channel?: InquiryChannel | 'all';
   q?: string;
+  dateFrom?: string;
+  dateTo?: string;
 }
 
 export async function listInquiries(
@@ -92,6 +111,14 @@ export async function listInquiries(
     }
     if (filters.channel && filters.channel !== 'all') {
       items = items.filter((i) => i.channel === filters.channel);
+    }
+    if (filters.dateFrom) {
+      const fromTs = new Date(`${filters.dateFrom}T00:00:00`).getTime();
+      items = items.filter((i) => new Date(i.created_at).getTime() >= fromTs);
+    }
+    if (filters.dateTo) {
+      const toTs = new Date(`${filters.dateTo}T23:59:59.999`).getTime();
+      items = items.filter((i) => new Date(i.created_at).getTime() <= toTs);
     }
     if (filters.q && filters.q.trim()) {
       const needle = filters.q.trim().toLowerCase();
@@ -117,6 +144,12 @@ export async function listInquiries(
   }
   if (filters.channel && filters.channel !== 'all') {
     query = query.eq('channel', filters.channel);
+  }
+  if (filters.dateFrom) {
+    query = query.gte('created_at', `${filters.dateFrom}T00:00:00.000Z`);
+  }
+  if (filters.dateTo) {
+    query = query.lte('created_at', `${filters.dateTo}T23:59:59.999Z`);
   }
   if (filters.q && filters.q.trim()) {
     const safeQ = filters.q.trim().replace(/[,%]/g, '');
@@ -144,9 +177,17 @@ export async function getInquiryById(id: string): Promise<InquiryWithItems | nul
   return (data as InquiryWithItems) ?? null;
 }
 
+export interface UpdateInquiryPayload {
+  status?: InquiryStatus;
+  admin_note?: string | null;
+  skip_reason?: string | null;
+  confirmed_at?: string | null;
+  status_updated_at?: string | null;
+}
+
 export async function updateInquiry(
   id: string,
-  updates: { status?: InquiryStatus; admin_note?: string | null },
+  updates: UpdateInquiryPayload,
 ): Promise<void> {
   if (!isSupabaseConfigured || !supabase) {
     const idx = mockStore.inquiries.findIndex((i) => i.id === id);
@@ -154,6 +195,9 @@ export async function updateInquiry(
       mockStore.inquiries[idx] = {
         ...mockStore.inquiries[idx],
         ...updates,
+        status_updated_at:
+          updates.status_updated_at ??
+          (updates.status ? new Date().toISOString() : mockStore.inquiries[idx].status_updated_at),
       };
       saveMockStore();
     }
@@ -216,5 +260,94 @@ export async function getDashboardCounts(): Promise<DashboardCounts> {
     new_orders: newOrdRes.count ?? 0,
     new_inquiries: newInqRes.count ?? 0,
     inquiries_last_7_days: weekInqRes.count ?? 0,
+  };
+}
+
+export type InquiryStatusCounts = Record<InquiryStatus | 'all', number>;
+
+export async function getInquiryStatusCounts(
+  filters: Omit<InquiryListFilters, 'status'> = {},
+): Promise<InquiryStatusCounts> {
+  const rows = await listInquiries({ ...filters, status: 'all' });
+  const counts: InquiryStatusCounts = {
+    all: rows.length,
+    new: 0,
+    contacted: 0,
+    confirmed: 0,
+    dispatched: 0,
+    completed: 0,
+    skipped: 0,
+    closed: 0,
+  };
+  for (const row of rows) {
+    if (row.status in counts) {
+      counts[row.status] += 1;
+    }
+  }
+  return counts;
+}
+
+export async function trackOrder(
+  reference: string,
+  phone: string,
+): Promise<TrackedOrder | null> {
+  const refTrimmed = reference.trim();
+  const phoneTrimmed = phone.trim();
+  if (!refTrimmed || !phoneTrimmed) return null;
+
+  if (!isSupabaseConfigured || !supabase) {
+    return getMockTrackedOrder(refTrimmed, phoneTrimmed);
+  }
+
+  const { data, error } = await supabase.rpc('track_order', {
+    p_reference: refTrimmed,
+    p_phone: phoneTrimmed,
+  });
+  if (error) throw error;
+  if (!data) return null;
+  const parsed = data as TrackedOrder;
+  return {
+    ...parsed,
+    items: Array.isArray(parsed.items) ? parsed.items : [],
+  };
+}
+
+export async function getAdminSalesSummary(
+  from: string,
+  to: string,
+): Promise<AdminSalesSummary> {
+  if (!isSupabaseConfigured || !supabase) {
+    return getMockAdminSalesSummary(from, to);
+  }
+
+  const { data, error } = await supabase.rpc('admin_sales_summary', {
+    p_from: from,
+    p_to: to,
+  });
+  if (error) throw error;
+  if (!data) {
+    throw new Error('admin_sales_summary returned empty response');
+  }
+
+  const raw = data as AdminSalesSummary;
+  return {
+    range: raw.range ?? { from, to },
+    totals: {
+      orders: Number(raw.totals?.orders ?? 0),
+      new_orders: Number(raw.totals?.new_orders ?? 0),
+      skipped_orders: Number(raw.totals?.skipped_orders ?? 0),
+      confirmed_orders: Number(raw.totals?.confirmed_orders ?? 0),
+      revenue: Number(raw.totals?.revenue ?? 0),
+      avg_order_value: Number(raw.totals?.avg_order_value ?? 0),
+    },
+    daily: Array.isArray(raw.daily) ? raw.daily : [],
+    monthly: Array.isArray(raw.monthly) ? raw.monthly : [],
+    top_products: Array.isArray(raw.top_products) ? raw.top_products : [],
+    trending_products: Array.isArray(raw.trending_products)
+      ? raw.trending_products
+      : [],
+    by_status: Array.isArray(raw.by_status) ? raw.by_status : [],
+    by_channel: Array.isArray(raw.by_channel) ? raw.by_channel : [],
+    by_city: Array.isArray(raw.by_city) ? raw.by_city : [],
   };
 }

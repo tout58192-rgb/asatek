@@ -112,6 +112,36 @@ export default defineConfig(({command, mode}) => {
         '@': path.resolve(rootDir, '.'),
       },
     },
+    build: {
+      rolldownOptions: {
+        output: {
+          codeSplitting: {
+            groups: [
+              {
+                name: 'react',
+                test: /[/\\]node_modules[/\\](react|react-dom|scheduler|react-is)[/\\]/,
+                priority: 40,
+              },
+              {
+                name: 'router',
+                test: /[/\\]node_modules[/\\](react-router|react-router-dom|@remix-run)[/\\]/,
+                priority: 30,
+              },
+              {
+                name: 'supabase',
+                test: /[/\\]node_modules[/\\]@supabase[/\\]/,
+                priority: 20,
+              },
+              {
+                name: 'charts',
+                test: /[/\\]node_modules[/\\](recharts|d3-|victory-vendor)[/\\]/,
+                priority: 10,
+              },
+            ],
+          },
+        },
+      },
+    },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modify—file watching is disabled to prevent flickering during agent edits.

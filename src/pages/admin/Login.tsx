@@ -18,6 +18,7 @@ export default function AdminLogin() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    void import('./Dashboard');
     document.title = 'Admin Sign In — ASATEK';
     let robots = document.querySelector('meta[name="robots"]');
     if (!robots) {

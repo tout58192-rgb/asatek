@@ -39,6 +39,8 @@ export function ProductGallery({
           alt={alt}
           sku={sku}
           categoryIcon={categoryIcon}
+          width={800}
+          height={800}
         />
       </div>
 
@@ -67,7 +69,10 @@ export function ProductGallery({
                   <img
                     src={img.image_url}
                     alt={`${alt} thumbnail ${idx + 1}`}
+                    width={160}
+                    height={160}
                     loading="lazy"
+                    decoding="async"
                     referrerPolicy="no-referrer"
                     onError={() =>
                       setFailedThumbs((prev) => ({ ...prev, [img.id]: true }))

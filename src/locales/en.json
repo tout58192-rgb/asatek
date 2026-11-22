@@ -4,6 +4,7 @@
     "products": "Products",
     "about": "About",
     "contact": "Contact",
+    "track": "Track Order",
     "quote": "Order List",
     "admin": "Admin"
   },
@@ -137,6 +138,7 @@
     "successWhatsappNote": "WhatsApp has been opened with your pre-filled order list. Your order was also saved under the reference above.",
     "whatsappSaveWarning": "Could not reach server to save copy, but WhatsApp was opened with your order details.",
     "submitError": "Could not send. Please try again or order on WhatsApp.",
+    "trackYourOrder": "Track your order",
     "startNewOrder": "Browse More Products"
   },
   "about": {
@@ -174,6 +176,50 @@
     "title": "Page Not Found",
     "desc": "The page you are looking for does not exist or has been moved.",
     "backHome": "Back to Home"
+  },
+  "track": {
+    "title": "Track Your Order",
+    "subtitle": "Enter your order reference code and phone number to check live factory progress.",
+    "referenceLabel": "Order Reference Code",
+    "referencePlaceholder": "e.g. ASK-20261122-0001",
+    "phoneLabel": "Phone Number",
+    "phonePlaceholder": "e.g. 03001234567",
+    "submitButton": "Track Order",
+    "checking": "Checking order status...",
+    "recentHeading": "My recent orders",
+    "recentEmpty": "Orders placed from this browser will appear here for one-tap tracking.",
+    "useOrder": "Check Status",
+    "notFound": "Order not found, check reference and phone",
+    "errorTitle": "Could not check order status",
+    "placedOn": "Placed on",
+    "lastUpdated": "Last updated",
+    "autoRefreshNote": "Status updates automatically every 30 seconds",
+    "itemsHeading": "Order Items",
+    "productCol": "Product",
+    "skuCol": "SKU",
+    "qtyCol": "Qty",
+    "priceCol": "Unit Rate",
+    "lineTotalCol": "Total",
+    "totalLabel": "Order Total",
+    "skippedTitle": "Order skipped / cancelled",
+    "skippedDesc": "This order was cancelled or could not be processed. Please contact our factory desk if you need help.",
+    "skipReasonLabel": "Reason",
+    "contactFactory": "Contact Factory on WhatsApp",
+    "steps": {
+      "received": "Received",
+      "confirmed": "Confirmed",
+      "dispatched": "Dispatched",
+      "completed": "Completed"
+    },
+    "statuses": {
+      "new": "Received",
+      "contacted": "In Review",
+      "confirmed": "Confirmed",
+      "dispatched": "Dispatched",
+      "completed": "Completed",
+      "skipped": "Skipped / Cancelled",
+      "closed": "Closed"
+    }
   },
   "footer": {
     "quickLinks": "Quick Links",

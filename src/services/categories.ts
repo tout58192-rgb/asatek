@@ -3,6 +3,31 @@ import type { Category } from '../types/db';
 import { mockStore, saveMockStore } from './mockData';
 import { deleteStorageImageByPublicUrl } from './storage';
 
+const CATEGORIES_CACHE_KEY = 'asatek_cache_categories_v1';
+
+export function getCachedCategories(): Category[] | undefined {
+  if (!isSupabaseConfigured) return undefined;
+  if (typeof window === 'undefined' || !window.localStorage) return undefined;
+  try {
+    const raw = window.localStorage.getItem(CATEGORIES_CACHE_KEY);
+    if (!raw) return undefined;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as Category[]) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function setCachedCategories(list: Category[]): void {
+  if (!isSupabaseConfigured) return;
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    window.localStorage.setItem(CATEGORIES_CACHE_KEY, JSON.stringify(list));
+  } catch {
+    // Ignore storage quota errors
+  }
+}
+
 export async function listCategories(includeInactive = false): Promise<Category[]> {
   if (!isSupabaseConfigured || !supabase) {
     const list = includeInactive
@@ -13,7 +38,7 @@ export async function listCategories(includeInactive = false): Promise<Category[
 
   let query = supabase
     .from('categories')
-    .select('*')
+    .select('id, slug, name_en, name_ur, icon, image_url, sort_order, is_active, created_at, updated_at')
     .order('sort_order', { ascending: true });
 
   if (!includeInactive) {
@@ -22,7 +47,11 @@ export async function listCategories(includeInactive = false): Promise<Category[
 
   const { data, error } = await query;
   if (error) throw error;
-  return (data ?? []) as Category[];
+  const rows = (data ?? []) as Category[];
+  if (!includeInactive) {
+    setCachedCategories(rows);
+  }
+  return rows;
 }
 
 export type CategoryInput = {

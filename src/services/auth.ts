@@ -19,7 +19,7 @@ export async function getCurrentAdmin(): Promise<AdminUser | null> {
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('id, email, role')
+    .select('role')
     .eq('id', session.user.id)
     .maybeSingle();
 
@@ -29,8 +29,8 @@ export async function getCurrentAdmin(): Promise<AdminUser | null> {
   }
 
   return {
-    id: profile.id,
-    email: profile.email ?? session.user.email ?? null,
+    id: session.user.id,
+    email: session.user.email ?? null,
     role: 'admin',
   };
 }
@@ -55,7 +55,7 @@ export async function signInAdmin(
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('id, email, role')
+    .select('role')
     .eq('id', data.user.id)
     .maybeSingle();
 
@@ -70,8 +70,8 @@ export async function signInAdmin(
   }
 
   return {
-    id: profile.id,
-    email: profile.email ?? data.user.email ?? null,
+    id: data.user.id,
+    email: data.user.email ?? null,
     role: 'admin',
   };
 }

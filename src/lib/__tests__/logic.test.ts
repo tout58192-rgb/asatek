@@ -14,10 +14,26 @@ import {
   buildOrderWhatsAppMessage,
   buildProductWhatsAppMessage,
 } from '../whatsapp';
-import { parseManagedStorageUrl } from '../storageUrl';
+import {
+  parseManagedStorageUrl,
+  getThumbnailStoragePath,
+  getThumbnailPublicUrl,
+} from '../storageUrl';
+import {
+  getOrderTimelineStep,
+  isRevenueStatus,
+  getInquiryTotalAmount,
+  formatBuyerReplyDigits,
+  buildBuyerStatusWhatsAppMessage,
+  getPresetDateRange,
+  findBestDay,
+  findBestMonth,
+  buildOrdersCsv,
+} from '../orderHelpers';
+import { getMockTrackedOrder, getMockAdminSalesSummary } from '../../services/mockData';
 import { buyerOrderSchema, whatsappSettingSchema, validateQuantity } from '../validation';
 import { pick } from '../i18n';
-import type { ProductPriceTier } from '../../types/db';
+import type { InquiryWithItems, ProductPriceTier } from '../../types/db';
 
 const sampleTiers: ProductPriceTier[] = [
   { id: 't3', product_id: 'p1', min_qty: 50, unit_price: 2100 },
@@ -154,6 +170,33 @@ test('storageUrl: parseManagedStorageUrl matches managed buckets only', () => {
   );
 });
 
+test('storageUrl: getThumbnailStoragePath and getThumbnailPublicUrl handle managed vs external vs SVG URLs', () => {
+  const supabaseUrl = 'https://sihdukiyucmvbtfbacjv.supabase.co';
+  assert.equal(getThumbnailStoragePath('products/p1/hero.webp'), 'products/p1/hero_thumb.webp');
+  assert.equal(getThumbnailStoragePath('products/p1/hero_thumb.webp'), 'products/p1/hero_thumb.webp');
+  assert.equal(getThumbnailStoragePath('site/logo.svg'), 'site/logo.svg');
+
+  assert.equal(
+    getThumbnailPublicUrl(
+      'https://sihdukiyucmvbtfbacjv.supabase.co/storage/v1/object/public/product-images/products/p1/img.webp',
+      supabaseUrl,
+    ),
+    'https://sihdukiyucmvbtfbacjv.supabase.co/storage/v1/object/public/product-images/products/p1/img_thumb.webp',
+  );
+  // External URLs and SVGs stay untouched
+  assert.equal(
+    getThumbnailPublicUrl('https://images.unsplash.com/photo-123', supabaseUrl),
+    'https://images.unsplash.com/photo-123',
+  );
+  assert.equal(
+    getThumbnailPublicUrl(
+      'https://sihdukiyucmvbtfbacjv.supabase.co/storage/v1/object/public/site-assets/site/logo.svg',
+      supabaseUrl,
+    ),
+    'https://sihdukiyucmvbtfbacjv.supabase.co/storage/v1/object/public/site-assets/site/logo.svg',
+  );
+});
+
 test('whatsapp: buildProductWhatsAppMessage includes SKU, quantity, and productUrl', () => {
   const msg = buildProductWhatsAppMessage({
     name: 'SC5 VA-1260 Solar Controller',
@@ -164,4 +207,134 @@ test('whatsapp: buildProductWhatsAppMessage includes SKU, quantity, and productU
   assert.ok(msg.includes('SC5 VA-1260 Solar Controller (ASK-SC5VA-1260)'));
   assert.ok(msg.includes('Quantity: 5'));
   assert.ok(msg.includes('Link: https://asatek.sadiqabad.workers.dev/products/sc5-va-1260'));
+});
+
+test('orderHelpers: timeline step, revenue status, total calculation, and buyer phone normalization', () => {
+  assert.equal(getOrderTimelineStep('new'), 0);
+  assert.equal(getOrderTimelineStep('contacted'), 0);
+  assert.equal(getOrderTimelineStep('confirmed'), 1);
+  assert.equal(getOrderTimelineStep('dispatched'), 2);
+  assert.equal(getOrderTimelineStep('completed'), 3);
+  assert.equal(getOrderTimelineStep('skipped'), -1);
+
+  assert.equal(isRevenueStatus('new'), false);
+  assert.equal(isRevenueStatus('skipped'), false);
+  assert.equal(isRevenueStatus('confirmed'), true);
+  assert.equal(isRevenueStatus('dispatched'), true);
+  assert.equal(isRevenueStatus('completed'), true);
+
+  assert.equal(formatBuyerReplyDigits('-'), null);
+  assert.equal(formatBuyerReplyDigits('0300-1234567'), '923001234567');
+  assert.equal(formatBuyerReplyDigits('+92 321 7654321'), '923217654321');
+  assert.equal(formatBuyerReplyDigits('123'), null);
+
+  const inq: InquiryWithItems = {
+    id: 'i1',
+    reference: 'ASK-20261122-0001',
+    type: 'quote',
+    channel: 'website',
+    name: 'Ali',
+    phone: '03001234567',
+    city: 'Multan',
+    business_name: null,
+    message: null,
+    status: 'confirmed',
+    admin_note: null,
+    created_at: '2026-11-22T10:00:00Z',
+    items: [
+      { id: 'ii1', inquiry_id: 'i1', product_id: 'p1', product_name: 'UPS', sku: 'U1', quantity: 2, unit_price: 18500 },
+    ],
+  };
+  assert.equal(getInquiryTotalAmount(inq), 37000);
+  assert.equal(getInquiryTotalAmount({ ...inq, total_amount: 40000 }), 40000);
+});
+
+test('orderHelpers: buyer status WhatsApp messages (EN & UR) and date/CSV helpers', () => {
+  const enConfirmed = buildBuyerStatusWhatsAppMessage({
+    reference: 'ASK-101',
+    status: 'confirmed',
+    lang: 'en',
+  });
+  assert.ok(enConfirmed.includes('ASK-101'));
+  assert.ok(enConfirmed.includes('confirmed'));
+
+  const urSkipped = buildBuyerStatusWhatsAppMessage({
+    reference: 'ASK-102',
+    status: 'skipped',
+    skipReason: 'Out of stock',
+    lang: 'ur',
+  });
+  assert.ok(urSkipped.includes('ASK-102'));
+  assert.ok(urSkipped.includes('Out of stock'));
+
+  const fixedNow = new Date(2026, 10, 22, 12, 0, 0); // Nov 22, 2026
+  assert.deepEqual(getPresetDateRange('today', fixedNow), {
+    from: '2026-11-22',
+    to: '2026-11-22',
+  });
+  assert.deepEqual(getPresetDateRange('this_month', fixedNow), {
+    from: '2026-11-01',
+    to: '2026-11-22',
+  });
+  assert.deepEqual(getPresetDateRange('last_month', fixedNow), {
+    from: '2026-10-01',
+    to: '2026-10-31',
+  });
+
+  assert.equal(
+    findBestDay([
+      { date: '2026-11-20', orders: 1, revenue: 1000 },
+      { date: '2026-11-21', orders: 3, revenue: 95000 },
+    ])?.date,
+    '2026-11-21',
+  );
+  assert.equal(findBestDay([]), null);
+
+  assert.equal(
+    findBestMonth([
+      { month: '2026-10', orders: 4, revenue: 50000 },
+      { month: '2026-11', orders: 8, revenue: 210000 },
+    ])?.month,
+    '2026-11',
+  );
+
+  const csv = buildOrdersCsv([
+    {
+      id: 'i1',
+      reference: 'ASK-20261122-0001',
+      type: 'quote',
+      channel: 'website',
+      name: 'Ahmed, "Solar" Co',
+      phone: '03001234567',
+      city: 'Lahore',
+      business_name: null,
+      message: null,
+      status: 'confirmed',
+      admin_note: 'Priority',
+      created_at: '2026-11-22T10:00:00Z',
+      total_amount: 50000,
+      items: [
+        { id: '1', inquiry_id: 'i1', product_id: 'p1', product_name: 'Controller', sku: 'SC5', quantity: 10, unit_price: 5000 },
+      ],
+    },
+  ]);
+  assert.ok(csv.startsWith('Reference,Date,Type,Channel,Status,Buyer Name,Phone,City,Business Name,Items,Total (PKR),Skip Reason,Admin Note'));
+  assert.ok(csv.includes('"Ahmed, ""Solar"" Co"'));
+  assert.ok(csv.includes('50000'));
+});
+
+test('mockData: getMockTrackedOrder and getMockAdminSalesSummary work deterministically', () => {
+  const found = getMockTrackedOrder('ask-20261121-0001', '0300-1234567');
+  assert.ok(found);
+  assert.equal(found.reference, 'ASK-20261121-0001');
+  assert.equal(found.items.length, 2);
+
+  const missing = getMockTrackedOrder('ASK-99999999-9999', '03001234567');
+  assert.equal(missing, null);
+
+  const summary = getMockAdminSalesSummary('2020-01-01', '2030-12-31');
+  assert.ok(summary.totals.orders >= 2);
+  assert.ok(summary.totals.revenue >= 139000);
+  assert.ok(summary.by_status.length > 0);
+  assert.ok(summary.by_channel.length > 0);
 });

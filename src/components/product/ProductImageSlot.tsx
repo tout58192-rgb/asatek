@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { getThumbnailPublicUrl } from '../../lib/storageUrl';
 import { CategoryIcon } from '../ui/CategoryIcon';
 
 interface ProductImageSlotProps {
@@ -7,6 +8,9 @@ interface ProductImageSlotProps {
   sku?: string;
   categoryIcon?: string | null;
   className?: string;
+  useThumb?: boolean;
+  width?: number;
+  height?: number;
 }
 
 export function ProductImageSlot({
@@ -15,21 +19,45 @@ export function ProductImageSlot({
   sku,
   categoryIcon,
   className = '',
+  useThumb = false,
+  width = 480,
+  height = 480,
 }: ProductImageSlotProps) {
+  const [triedFull, setTriedFull] = useState(false);
   const [failed, setFailed] = useState(false);
 
-  useEffect(() => {
-    setFailed(false);
-  }, [imageUrl]);
+  const supabaseUrl = (
+    (import.meta.env.VITE_SUPABASE_URL as string | undefined) ?? ''
+  ).trim();
+  const thumbUrl =
+    useThumb && imageUrl
+      ? getThumbnailPublicUrl(imageUrl, supabaseUrl || undefined)
+      : imageUrl;
+  const activeSrc =
+    useThumb && !triedFull && thumbUrl ? thumbUrl : (imageUrl ?? null);
 
-  if (imageUrl && !failed) {
+  useEffect(() => {
+    setTriedFull(false);
+    setFailed(false);
+  }, [imageUrl, useThumb]);
+
+  if (activeSrc && !failed) {
     return (
       <img
-        src={imageUrl}
+        src={activeSrc}
         alt={alt}
+        width={width}
+        height={height}
         loading="lazy"
+        decoding="async"
         referrerPolicy="no-referrer"
-        onError={() => setFailed(true)}
+        onError={() => {
+          if (useThumb && !triedFull && thumbUrl && thumbUrl !== imageUrl) {
+            setTriedFull(true);
+          } else {
+            setFailed(true);
+          }
+        }}
         className={`w-full h-full object-cover ${className}`}
       />
     );

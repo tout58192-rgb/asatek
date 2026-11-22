@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { RefreshCw, Search } from 'lucide-react';
 import { AdminLayout } from '../../components/admin/AdminLayout';
@@ -11,22 +11,42 @@ import { Button } from '../../components/ui/Button';
 import { Select } from '../../components/ui/Select';
 import { TableRowSkeleton } from '../../components/ui/Skeleton';
 import { WhatsAppIcon } from '../../components/ui/WhatsAppIcon';
-import { useInquiries } from '../../hooks/useInquiries';
+import { useInquiries, useInquiryStatusCounts } from '../../hooks/useInquiries';
 import { formatDateTime, formatPKR, getErrorMessage } from '../../lib/format';
+import {
+  formatBuyerReplyDigits,
+  getInquiryTotalAmount,
+  getPresetDateRange,
+} from '../../lib/orderHelpers';
 import { buildWhatsAppLink } from '../../lib/whatsapp';
 import type { InquiryChannel, InquiryStatus } from '../../types/db';
 
-function formatReplyDigits(phone: string | null | undefined): string | null {
-  if (!phone) return null;
-  const digits = phone.replace(/\D/g, '');
-  if (digits.length < 10 || /^0+$/.test(digits)) return null;
-  return digits.startsWith('0') ? `92${digits.slice(1)}` : digits;
-}
+type DateFilterPreset = 'all' | 'today' | 'last_7_days' | 'last_30_days' | 'this_month' | 'custom';
 
 export default function AdminInquiries() {
-  const [status, setStatus] = useState<InquiryStatus | 'all'>('all');
+  const [status, setStatus] = useState<InquiryStatus | 'all'>('new');
   const [channel, setChannel] = useState<InquiryChannel | 'all'>('all');
   const [q, setQ] = useState('');
+  const [datePreset, setDatePreset] = useState<DateFilterPreset>('all');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
+
+  const { dateFrom, dateTo } = useMemo(() => {
+    if (datePreset === 'all') return { dateFrom: undefined, dateTo: undefined };
+    if (datePreset === 'custom') {
+      return {
+        dateFrom: customFrom || undefined,
+        dateTo: customTo || undefined,
+      };
+    }
+    const r = getPresetDateRange(datePreset);
+    return { dateFrom: r.from, dateTo: r.to };
+  }, [datePreset, customFrom, customTo]);
+
+  const {
+    data: statusCounts,
+    refetch: refetchCounts,
+  } = useInquiryStatusCounts({ channel, q, dateFrom, dateTo });
 
   const {
     data: inquiries,
@@ -35,14 +55,68 @@ export default function AdminInquiries() {
     isError,
     error,
     refetch,
-  } = useInquiries({ status, channel, q });
+  } = useInquiries({ status, channel, q, dateFrom, dateTo });
+
+  const statusTabs: Array<{ key: InquiryStatus | 'all'; label: string }> = [
+    { key: 'new', label: 'New' },
+    { key: 'confirmed', label: 'Confirmed' },
+    { key: 'dispatched', label: 'Dispatched' },
+    { key: 'completed', label: 'Completed' },
+    { key: 'skipped', label: 'Skipped' },
+    { key: 'all', label: 'All' },
+  ];
+
+  const handleRefresh = () => {
+    void refetch();
+    void refetchCounts();
+  };
 
   return (
     <AdminLayout title="Orders & Inquiries">
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
-          <div className="flex flex-col sm:flex-row gap-3 flex-1">
-            <div className="relative flex-1 max-w-md">
+        {/* Status Tabs with Counts */}
+        <div
+          role="tablist"
+          aria-label="Order status tabs"
+          className="flex flex-wrap items-center gap-2 border-b border-[var(--line)] pb-3"
+        >
+          {statusTabs.map((tab) => {
+            const active = status === tab.key;
+            const count = statusCounts ? statusCounts[tab.key] ?? 0 : null;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setStatus(tab.key)}
+                className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors cursor-pointer ${
+                  active
+                    ? 'bg-[var(--brand-red)] text-white'
+                    : 'bg-white border border-[var(--line)] text-[var(--ink-soft)] hover:text-[var(--ink)] hover:bg-[var(--bg-alt)]'
+                }`}
+              >
+                <span>{tab.label}</span>
+                {count !== null && (
+                  <span
+                    className={`inline-flex min-w-[20px] h-5 px-1.5 items-center justify-center rounded-full text-xs font-bold tabular-nums ${
+                      active
+                        ? 'bg-white/20 text-white'
+                        : 'bg-[var(--bg-alt)] text-[var(--ink)]'
+                    }`}
+                  >
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Search, Channel & Date Filters */}
+        <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
+          <div className="flex flex-col sm:flex-row flex-wrap gap-3 flex-1">
+            <div className="relative flex-1 min-w-[220px] max-w-md">
               <Search className="w-4 h-4 text-[var(--ink-soft)] absolute top-1/2 -translate-y-1/2 start-3.5" />
               <input
                 type="search"
@@ -53,22 +127,7 @@ export default function AdminInquiries() {
               />
             </div>
 
-            <div className="w-full sm:w-44">
-              <Select
-                aria-label="Filter by status"
-                value={status}
-                onChange={(e) =>
-                  setStatus(e.target.value as InquiryStatus | 'all')
-                }
-              >
-                <option value="all">All Statuses</option>
-                <option value="new">New</option>
-                <option value="contacted">Contacted</option>
-                <option value="closed">Closed</option>
-              </Select>
-            </div>
-
-            <div className="w-full sm:w-44">
+            <div className="w-full sm:w-40">
               <Select
                 aria-label="Filter by channel"
                 value={channel}
@@ -81,13 +140,50 @@ export default function AdminInquiries() {
                 <option value="whatsapp">WhatsApp</option>
               </Select>
             </div>
+
+            <div className="w-full sm:w-44">
+              <Select
+                aria-label="Filter by date"
+                value={datePreset}
+                onChange={(e) =>
+                  setDatePreset(e.target.value as DateFilterPreset)
+                }
+              >
+                <option value="all">All Dates</option>
+                <option value="today">Today</option>
+                <option value="last_7_days">Last 7 Days</option>
+                <option value="last_30_days">Last 30 Days</option>
+                <option value="this_month">This Month</option>
+                <option value="custom">Custom Range</option>
+              </Select>
+            </div>
+
+            {datePreset === 'custom' && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  aria-label="From date"
+                  value={customFrom}
+                  onChange={(e) => setCustomFrom(e.target.value)}
+                  className="min-h-[44px] rounded-lg border border-[var(--line)] bg-white px-3 text-sm"
+                />
+                <span className="text-xs text-[var(--ink-soft)]">to</span>
+                <input
+                  type="date"
+                  aria-label="To date"
+                  value={customTo}
+                  onChange={(e) => setCustomTo(e.target.value)}
+                  className="min-h-[44px] rounded-lg border border-[var(--line)] bg-white px-3 text-sm"
+                />
+              </div>
+            )}
           </div>
 
           <Button
             type="button"
             variant="secondary"
             size="md"
-            onClick={() => void refetch()}
+            onClick={handleRefresh}
           >
             <RefreshCw
               className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`}
@@ -108,7 +204,7 @@ export default function AdminInquiries() {
               type="button"
               variant="secondary"
               size="sm"
-              onClick={() => void refetch()}
+              onClick={handleRefresh}
             >
               Retry
             </Button>
@@ -147,12 +243,8 @@ export default function AdminInquiries() {
                   </tr>
                 ) : (
                   (inquiries ?? []).map((inq) => {
-                    const replyDigits = formatReplyDigits(inq.phone);
-                    const total = inq.items.reduce(
-                      (sum, item) =>
-                        sum + Number(item.unit_price ?? 0) * item.quantity,
-                      0,
-                    );
+                    const replyDigits = formatBuyerReplyDigits(inq.phone);
+                    const total = getInquiryTotalAmount(inq);
                     const replyHref = replyDigits
                       ? buildWhatsAppLink(
                           replyDigits,
@@ -235,6 +327,11 @@ export default function AdminInquiries() {
                         </td>
                         <td className="px-4 py-3">
                           <InquiryStatusBadge status={inq.status} />
+                          {inq.status === 'skipped' && inq.skip_reason && (
+                            <p className="text-[11px] text-[var(--brand-red-dark)] mt-1 max-w-[140px] truncate">
+                              {inq.skip_reason}
+                            </p>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-end whitespace-nowrap">
                           <div className="inline-flex items-center gap-2">

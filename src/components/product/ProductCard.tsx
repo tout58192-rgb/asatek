@@ -31,6 +31,9 @@ export function ProductCard({ product }: { product: ProductWithDetails }) {
           alt={name}
           sku={product.sku}
           categoryIcon={product.category?.icon}
+          useThumb
+          width={480}
+          height={480}
         />
       </Link>
 

@@ -27,6 +27,35 @@ function attachCategory(
   };
 }
 
+const PRODUCT_LIST_SELECT = `
+  id,
+  category_id,
+  slug,
+  sku,
+  name_en,
+  name_ur,
+  moq,
+  availability,
+  is_active,
+  is_featured,
+  created_at,
+  category:categories(id, slug, name_en, name_ur, icon, is_active),
+  images:product_images(id, image_url, sort_order, is_primary),
+  price_tiers:product_price_tiers(id, min_qty, unit_price)
+`;
+
+function normalizeListProduct(p: ProductWithDetails): ProductWithDetails {
+  return {
+    ...p,
+    short_desc_en: p.short_desc_en ?? null,
+    short_desc_ur: p.short_desc_ur ?? null,
+    updated_at: p.updated_at ?? p.created_at,
+    images: [...(p.images ?? [])].sort((a, b) => a.sort_order - b.sort_order),
+    price_tiers: sortTiers(p.price_tiers ?? []),
+    specs: [...(p.specs ?? [])].sort((a, b) => a.sort_order - b.sort_order),
+  };
+}
+
 export async function listProducts(
   params: ProductListParams = {},
 ): Promise<PaginatedResult<ProductWithDetails>> {
@@ -94,16 +123,7 @@ export async function listProducts(
 
   let query = supabase
     .from('products')
-    .select(
-      `
-      *,
-      category:categories(*),
-      images:product_images(*),
-      price_tiers:product_price_tiers(*),
-      specs:product_specs(*)
-    `,
-      { count: 'exact' },
-    );
+    .select(PRODUCT_LIST_SELECT, { count: 'exact' });
 
   if (!includeInactive) {
     query = query.eq('is_active', true);
@@ -127,12 +147,9 @@ export async function listProducts(
   if (sort === 'price_asc') {
     const { data, error, count } = await query;
     if (error) throw error;
-    const normalized = ((data ?? []) as ProductWithDetails[]).map((p) => ({
-      ...p,
-      images: [...(p.images ?? [])].sort((a, b) => a.sort_order - b.sort_order),
-      price_tiers: sortTiers(p.price_tiers ?? []),
-      specs: [...(p.specs ?? [])].sort((a, b) => a.sort_order - b.sort_order),
-    }));
+    const normalized = ((data ?? []) as unknown as ProductWithDetails[]).map(
+      normalizeListProduct,
+    );
     normalized.sort((a, b) => {
       const pa = getLowestUnitPrice(a.price_tiers) ?? Number.MAX_SAFE_INTEGER;
       const pb = getLowestUnitPrice(b.price_tiers) ?? Number.MAX_SAFE_INTEGER;
@@ -152,12 +169,9 @@ export async function listProducts(
   const { data, error, count } = await query.range(from, to);
   if (error) throw error;
 
-  const items = ((data ?? []) as ProductWithDetails[]).map((p) => ({
-    ...p,
-    images: [...(p.images ?? [])].sort((a, b) => a.sort_order - b.sort_order),
-    price_tiers: sortTiers(p.price_tiers ?? []),
-    specs: [...(p.specs ?? [])].sort((a, b) => a.sort_order - b.sort_order),
-  }));
+  const items = ((data ?? []) as unknown as ProductWithDetails[]).map(
+    normalizeListProduct,
+  );
 
   return {
     items,
@@ -181,48 +195,27 @@ export async function listFeaturedProducts(limit = 8): Promise<ProductWithDetail
 
   const { data, error } = await supabase
     .from('products')
-    .select(
-      `
-      *,
-      category:categories(*),
-      images:product_images(*),
-      price_tiers:product_price_tiers(*),
-      specs:product_specs(*)
-    `,
-    )
+    .select(PRODUCT_LIST_SELECT)
     .eq('is_active', true)
     .eq('is_featured', true)
     .order('created_at', { ascending: false })
     .limit(limit);
 
   if (error) throw error;
-  let rows = (data ?? []) as ProductWithDetails[];
+  let rows = (data ?? []) as unknown as ProductWithDetails[];
 
   if (rows.length === 0) {
     const { data: latestData, error: latestError } = await supabase
       .from('products')
-      .select(
-        `
-        *,
-        category:categories(*),
-        images:product_images(*),
-        price_tiers:product_price_tiers(*),
-        specs:product_specs(*)
-      `,
-      )
+      .select(PRODUCT_LIST_SELECT)
       .eq('is_active', true)
       .order('created_at', { ascending: false })
       .limit(limit);
     if (latestError) throw latestError;
-    rows = (latestData ?? []) as ProductWithDetails[];
+    rows = (latestData ?? []) as unknown as ProductWithDetails[];
   }
 
-  return rows.map((p) => ({
-    ...p,
-    images: [...(p.images ?? [])].sort((a, b) => a.sort_order - b.sort_order),
-    price_tiers: sortTiers(p.price_tiers ?? []),
-    specs: [...(p.specs ?? [])].sort((a, b) => a.sort_order - b.sort_order),
-  }));
+  return rows.map(normalizeListProduct);
 }
 
 export async function getProductBySlug(slug: string): Promise<ProductWithDetails | null> {

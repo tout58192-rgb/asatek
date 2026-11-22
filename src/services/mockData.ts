@@ -607,6 +607,10 @@ export const mockInquiries: InquiryWithItems[] = [
     status: 'new',
     admin_note: null,
     created_at: nowIso,
+    status_updated_at: nowIso,
+    confirmed_at: null,
+    total_amount: 88600,
+    skip_reason: null,
     items: [
       {
         id: 'ii-1',
@@ -638,9 +642,13 @@ export const mockInquiries: InquiryWithItems[] = [
     city: 'Lahore',
     business_name: 'Hall Road Power Traders',
     message: 'Need 24V 60A models with voltmeter + ammeter.',
-    status: 'contacted',
+    status: 'confirmed',
     admin_note: 'Quoted bilty rate via Daewoo Cargo.',
     created_at: twoDaysAgoIso,
+    status_updated_at: twoDaysAgoIso,
+    confirmed_at: twoDaysAgoIso,
+    total_amount: 139000,
+    skip_reason: null,
     items: [
       {
         id: 'ii-3',
@@ -666,6 +674,10 @@ export const mockInquiries: InquiryWithItems[] = [
     status: 'closed',
     admin_note: 'Dealer catalogue shared on WhatsApp.',
     created_at: fiveDaysAgoIso,
+    status_updated_at: fiveDaysAgoIso,
+    confirmed_at: null,
+    total_amount: 0,
+    skip_reason: null,
     items: [],
   },
 ];
@@ -742,5 +754,175 @@ export function getMockDashboardCounts(): DashboardCounts {
     inquiries_last_7_days: mockStore.inquiries.filter(
       (i) => new Date(i.created_at).getTime() >= sevenDaysAgo,
     ).length,
+  };
+}
+
+export function getMockTrackedOrder(
+  reference: string,
+  phone: string,
+): import('../types/db').TrackedOrder | null {
+  const refNorm = reference.trim().toLowerCase();
+  const phoneDigits = phone.replace(/\D/g, '');
+  if (!refNorm || !phoneDigits) return null;
+
+  const found = mockStore.inquiries.find((i) => {
+    const iPhoneDigits = (i.phone || '').replace(/\D/g, '');
+    return (
+      i.reference.toLowerCase() === refNorm &&
+      (iPhoneDigits === phoneDigits ||
+        iPhoneDigits.endsWith(phoneDigits.slice(-10)) &&
+          phoneDigits.endsWith(iPhoneDigits.slice(-10)))
+    );
+  });
+  if (!found) return null;
+
+  const calcTotal =
+    found.total_amount ??
+    found.items.reduce(
+      (sum, item) => sum + Number(item.unit_price ?? 0) * item.quantity,
+      0,
+    );
+
+  return {
+    reference: found.reference,
+    status: found.status,
+    created_at: found.created_at,
+    status_updated_at: found.status_updated_at ?? found.created_at,
+    skip_reason: found.skip_reason ?? null,
+    total_amount: calcTotal,
+    items: found.items.map((item) => ({
+      product_id: item.product_id,
+      product_name: item.product_name,
+      sku: item.sku,
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+    })),
+  };
+}
+
+export function getMockAdminSalesSummary(
+  from: string,
+  to: string,
+): import('../types/db').AdminSalesSummary {
+  const fromTs = new Date(`${from}T00:00:00`).getTime();
+  const toTs = new Date(`${to}T23:59:59.999`).getTime();
+  const revenueStatuses = new Set(['confirmed', 'dispatched', 'completed']);
+
+  const ordersInRange = mockStore.inquiries.filter((i) => {
+    const ts = new Date(i.created_at).getTime();
+    return i.type === 'quote' && ts >= fromTs && ts <= toTs;
+  });
+
+  const calcAmount = (i: InquiryWithItems) =>
+    i.total_amount ??
+    i.items.reduce(
+      (s, it) => s + Number(it.unit_price ?? 0) * it.quantity,
+      0,
+    );
+
+  const revenueOrders = ordersInRange.filter((i) => revenueStatuses.has(i.status));
+  const totalRevenue = revenueOrders.reduce((s, i) => s + calcAmount(i), 0);
+
+  const dailyMap = new Map<string, { orders: number; revenue: number }>();
+  for (const o of ordersInRange) {
+    const day = o.created_at.slice(0, 10);
+    const cur = dailyMap.get(day) ?? { orders: 0, revenue: 0 };
+    cur.orders += 1;
+    if (revenueStatuses.has(o.status)) cur.revenue += calcAmount(o);
+    dailyMap.set(day, cur);
+  }
+
+  const monthlyMap = new Map<string, { orders: number; revenue: number }>();
+  for (const o of mockStore.inquiries.filter((i) => i.type === 'quote')) {
+    const month = o.created_at.slice(0, 7);
+    const cur = monthlyMap.get(month) ?? { orders: 0, revenue: 0 };
+    cur.orders += 1;
+    if (revenueStatuses.has(o.status)) cur.revenue += calcAmount(o);
+    monthlyMap.set(month, cur);
+  }
+
+  const topMap = new Map<string, { qty: number; revenue: number }>();
+  const trendMap = new Map<string, { qty: number; orders: number }>();
+  for (const o of ordersInRange) {
+    const seenInOrder = new Set<string>();
+    for (const it of o.items) {
+      const tCur = trendMap.get(it.product_name) ?? { qty: 0, orders: 0 };
+      tCur.qty += it.quantity;
+      if (!seenInOrder.has(it.product_name)) {
+        tCur.orders += 1;
+        seenInOrder.add(it.product_name);
+      }
+      trendMap.set(it.product_name, tCur);
+
+      if (revenueStatuses.has(o.status)) {
+        const topCur = topMap.get(it.product_name) ?? { qty: 0, revenue: 0 };
+        topCur.qty += it.quantity;
+        topCur.revenue += Number(it.unit_price ?? 0) * it.quantity;
+        topMap.set(it.product_name, topCur);
+      }
+    }
+  }
+
+  const statusMap = new Map<import('../types/db').InquiryStatus, number>();
+  const channelMap = new Map<
+    import('../types/db').InquiryChannel,
+    { orders: number; revenue: number }
+  >();
+  const cityMap = new Map<string, { orders: number; revenue: number }>();
+
+  for (const o of ordersInRange) {
+    statusMap.set(o.status, (statusMap.get(o.status) ?? 0) + 1);
+    const ch = channelMap.get(o.channel) ?? { orders: 0, revenue: 0 };
+    ch.orders += 1;
+    if (revenueStatuses.has(o.status)) ch.revenue += calcAmount(o);
+    channelMap.set(o.channel, ch);
+
+    const city = o.city?.trim() || 'Unspecified';
+    const ct = cityMap.get(city) ?? { orders: 0, revenue: 0 };
+    ct.orders += 1;
+    if (revenueStatuses.has(o.status)) ct.revenue += calcAmount(o);
+    cityMap.set(city, ct);
+  }
+
+  return {
+    range: { from, to },
+    totals: {
+      orders: ordersInRange.length,
+      new_orders: ordersInRange.filter((i) => i.status === 'new').length,
+      skipped_orders: ordersInRange.filter((i) => i.status === 'skipped').length,
+      confirmed_orders: revenueOrders.length,
+      revenue: totalRevenue,
+      avg_order_value:
+        revenueOrders.length > 0
+          ? Math.round(totalRevenue / revenueOrders.length)
+          : 0,
+    },
+    daily: [...dailyMap.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, val]) => ({ date, ...val })),
+    monthly: [...monthlyMap.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-12)
+      .map(([month, val]) => ({ month, ...val })),
+    top_products: [...topMap.entries()]
+      .sort((a, b) => b[1].revenue - a[1].revenue)
+      .slice(0, 8)
+      .map(([name, val]) => ({ name, ...val })),
+    trending_products: [...trendMap.entries()]
+      .sort((a, b) => b[1].orders - a[1].orders || b[1].qty - a[1].qty)
+      .slice(0, 8)
+      .map(([name, val]) => ({ name, ...val })),
+    by_status: [...statusMap.entries()].map(([status, orders]) => ({
+      status,
+      orders,
+    })),
+    by_channel: [...channelMap.entries()].map(([channel, val]) => ({
+      channel,
+      ...val,
+    })),
+    by_city: [...cityMap.entries()]
+      .sort((a, b) => b[1].orders - a[1].orders)
+      .slice(0, 8)
+      .map(([city, val]) => ({ city, ...val })),
   };
 }

@@ -1,7 +1,12 @@
-import { parseManagedStorageUrl, type StorageBucket } from '../lib/storageUrl';
+import {
+  getThumbnailStoragePath,
+  parseManagedStorageUrl,
+  type StorageBucket,
+} from '../lib/storageUrl';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
 
 const MAX_WIDTH = 1600;
+const THUMB_MAX_WIDTH = 480;
 const MAX_BYTES = 2 * 1024 * 1024; // 2 MB
 const MAX_INPUT_BYTES = 25 * 1024 * 1024; // 25 MB safety limit before canvas decode
 
@@ -49,7 +54,46 @@ function formatUploadError(err: unknown): Error {
   return new Error('Image upload failed. Please try again.');
 }
 
-async function resizeImageFile(file: File): Promise<Blob> {
+async function renderBitmapToBlob(
+  bitmap: ImageBitmap,
+  maxWidth: number,
+  preferredFormat?: 'image/webp' | 'image/jpeg',
+): Promise<Blob> {
+  const scale = bitmap.width > maxWidth ? maxWidth / bitmap.width : 1;
+  const targetWidth = Math.max(1, Math.round(bitmap.width * scale));
+  const targetHeight = Math.max(1, Math.round(bitmap.height * scale));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Could not initialize image canvas.');
+  ctx.drawImage(bitmap, 0, 0, targetWidth, targetHeight);
+
+  if (preferredFormat !== 'image/jpeg') {
+    const webp = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, 'image/webp', maxWidth <= THUMB_MAX_WIDTH ? 0.8 : 0.85),
+    );
+    if (webp && webp.size <= MAX_BYTES) {
+      return webp;
+    }
+  }
+
+  const jpeg = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, 'image/jpeg', maxWidth <= THUMB_MAX_WIDTH ? 0.72 : 0.75),
+  );
+  if (!jpeg) {
+    throw new Error('Image compression failed.');
+  }
+  if (jpeg.size > MAX_BYTES) {
+    throw new Error('Resized image still exceeds the 2 MB limit.');
+  }
+  return jpeg;
+}
+
+async function resizeImageWithThumb(
+  file: File,
+): Promise<{ main: Blob; thumb: Blob | null }> {
   if (!ALLOWED_MIME_TYPES.has(file.type)) {
     throw new Error(
       'Unsupported file type. Please choose a JPG, PNG, WebP, GIF, or SVG image.',
@@ -64,40 +108,19 @@ async function resizeImageFile(file: File): Promise<Blob> {
     if (file.size > MAX_BYTES) {
       throw new Error('SVG file exceeds the 2 MB limit.');
     }
-    return file;
+    return { main: file, thumb: null };
   }
 
   const imageBitmap = await createImageBitmap(file);
   try {
-    const scale =
-      imageBitmap.width > MAX_WIDTH ? MAX_WIDTH / imageBitmap.width : 1;
-    const targetWidth = Math.max(1, Math.round(imageBitmap.width * scale));
-    const targetHeight = Math.max(1, Math.round(imageBitmap.height * scale));
-
-    const canvas = document.createElement('canvas');
-    canvas.width = targetWidth;
-    canvas.height = targetHeight;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('Could not initialize image canvas.');
-    ctx.drawImage(imageBitmap, 0, 0, targetWidth, targetHeight);
-
-    const webp = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, 'image/webp', 0.85),
+    const main = await renderBitmapToBlob(imageBitmap, MAX_WIDTH);
+    const thumbFormat = main.type === 'image/webp' ? 'image/webp' : 'image/jpeg';
+    const thumb = await renderBitmapToBlob(
+      imageBitmap,
+      THUMB_MAX_WIDTH,
+      thumbFormat,
     );
-    if (webp && webp.size <= MAX_BYTES) {
-      return webp;
-    }
-
-    const jpeg = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, 'image/jpeg', 0.75),
-    );
-    if (!jpeg) {
-      throw new Error('Image compression failed.');
-    }
-    if (jpeg.size > MAX_BYTES) {
-      throw new Error('Resized image still exceeds the 2 MB limit.');
-    }
-    return jpeg;
+    return { main, thumb };
   } finally {
     imageBitmap.close();
   }
@@ -111,8 +134,8 @@ export async function uploadStorageImage(
 ): Promise<string> {
   const { fileNameHint, onProgress } = options;
 
-  onProgress?.(20, 'Resizing image...');
-  const resized = await resizeImageFile(file);
+  onProgress?.(20, 'Resizing image & creating thumbnail...');
+  const { main, thumb } = await resizeImageWithThumb(file);
 
   if (!isSupabaseConfigured || !supabase) {
     onProgress?.(85, 'Preparing preview...');
@@ -120,7 +143,7 @@ export async function uploadStorageImage(
       const reader = new FileReader();
       reader.onload = () => resolve(String(reader.result));
       reader.onerror = () => reject(new Error('Failed to read local file.'));
-      reader.readAsDataURL(resized);
+      reader.readAsDataURL(main);
     });
     onProgress?.(100, 'Complete');
     return dataUrl;
@@ -135,27 +158,43 @@ export async function uploadStorageImage(
 
   onProgress?.(55, 'Uploading to Supabase Storage...');
 
-  const baseName = (fileNameHint || file.name)
-    .replace(/\.[^.]+$/, '')
-    .replace(/[^a-zA-Z0-9.-]/g, '_')
-    .slice(0, 60) || 'image';
+  const baseName =
+    (fileNameHint || file.name)
+      .replace(/\.[^.]+$/, '')
+      .replace(/[^a-zA-Z0-9.-]/g, '_')
+      .slice(0, 60) || 'image';
   const ext =
-    resized.type === 'image/svg+xml'
+    main.type === 'image/svg+xml'
       ? 'svg'
-      : resized.type === 'image/webp'
+      : main.type === 'image/webp'
         ? 'webp'
         : 'jpg';
   const cleanPrefix = pathPrefix.replace(/^\/+|\/+$/g, '');
-  const objectPath = `${cleanPrefix}/${Date.now()}-${baseName}.${ext}`;
+  const timestamp = Date.now();
+  const objectPath = `${cleanPrefix}/${timestamp}-${baseName}.${ext}`;
 
   const { error } = await supabase.storage
     .from(bucket)
-    .upload(objectPath, resized, {
-      contentType: resized.type,
+    .upload(objectPath, main, {
+      contentType: main.type,
       upsert: false,
     });
   if (error) {
     throw formatUploadError(error);
+  }
+
+  if (thumb) {
+    onProgress?.(85, 'Uploading thumbnail...');
+    const thumbPath = getThumbnailStoragePath(objectPath);
+    const { error: thumbErr } = await supabase.storage
+      .from(bucket)
+      .upload(thumbPath, thumb, {
+        contentType: thumb.type,
+        upsert: false,
+      });
+    if (thumbErr) {
+      console.warn('Thumbnail upload skipped:', thumbErr.message);
+    }
   }
 
   onProgress?.(100, 'Uploaded');
@@ -164,8 +203,9 @@ export async function uploadStorageImage(
 }
 
 /**
- * Deletes an uploaded object from Supabase Storage ONLY if the URL belongs to
- * our managed `product-images` or `site-assets` bucket. Pasted external URLs are ignored.
+ * Deletes an uploaded object (and its `_thumb` companion if present) from Supabase Storage
+ * ONLY if the URL belongs to our managed `product-images` or `site-assets` bucket.
+ * Pasted external URLs are ignored.
  */
 export async function deleteStorageImageByPublicUrl(url: string): Promise<void> {
   if (!isSupabaseConfigured || !supabase || !url) return;
@@ -176,9 +216,11 @@ export async function deleteStorageImageByPublicUrl(url: string): Promise<void> 
   const parsed = parseManagedStorageUrl(url, supabaseUrl || undefined);
   if (!parsed) return;
 
-  const { error } = await supabase.storage
-    .from(parsed.bucket)
-    .remove([parsed.path]);
+  const thumbPath = getThumbnailStoragePath(parsed.path);
+  const paths =
+    thumbPath !== parsed.path ? [parsed.path, thumbPath] : [parsed.path];
+
+  const { error } = await supabase.storage.from(parsed.bucket).remove(paths);
   if (error) {
     console.warn('Could not delete storage file:', error.message);
   }
