@@ -26,6 +26,7 @@ export function getOrderTimelineStep(status: InquiryStatus): number {
     case 'completed':
       return 3;
     case 'skipped':
+    case 'cancelled':
       return -1;
     default:
       return 0;
@@ -81,7 +82,9 @@ export function buildBuyerStatusWhatsAppMessage(params: {
       case 'completed':
         return `السلام علیکم! آپ کا ایساٹیک آرڈر ${reference} مکمل ہو چکا ہے۔ ایساٹیک کا انتخاب کرنے کا شکریہ۔`;
       case 'skipped':
-        return `السلام علیکم! آپ کا ایساٹیک آرڈر ${reference} منسوخ / روک دیا گیا ہے۔${skipReason ? ` وجہ: ${skipReason}` : ''}`;
+        return `السلام علیکم! آپ کا ایساٹیک آرڈر ${reference} اسکپ کر دیا گیا ہے۔${skipReason ? ` وجہ: ${skipReason}` : ''}`;
+      case 'cancelled':
+        return `السلام علیکم! آپ کا ایساٹیک آرڈر ${reference} منسوخ کر دیا گیا ہے۔${skipReason ? ` وجہ: ${skipReason}` : ''}`;
       case 'contacted':
         return `السلام علیکم! آپ کے ایساٹیک آرڈر ${reference} کے حوالے سے ہماری ٹیم جلد رابطہ کر رہی ہے۔`;
       default:
@@ -97,7 +100,9 @@ export function buildBuyerStatusWhatsAppMessage(params: {
     case 'completed':
       return `Assalam o Alaikum, your ASATEK order ${reference} is completed. Thank you for choosing ASATEK.`;
     case 'skipped':
-      return `Assalam o Alaikum, your ASATEK order ${reference} was skipped/cancelled.${skipReason ? ` Reason: ${skipReason}` : ''}`;
+      return `Assalam o Alaikum, your ASATEK order ${reference} was skipped.${skipReason ? ` Reason: ${skipReason}` : ''}`;
+    case 'cancelled':
+      return `Assalam o Alaikum, your ASATEK order ${reference} was cancelled.${skipReason ? ` Reason: ${skipReason}` : ''}`;
     case 'contacted':
       return `Assalam o Alaikum, regarding your ASATEK order ${reference}:`;
     default:
@@ -225,4 +230,96 @@ export function buildOrdersCsv(inquiries: InquiryWithItems[]): string {
   });
 
   return [headers.map(escapeCsvCell).join(','), ...rows].join('\r\n');
+}
+
+const MONTH_SHORT_NAMES = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+export function formatShortPKR(value: number): string {
+  const num = Number(value) || 0;
+  if (Math.abs(num) >= 1_000_000) {
+    const m = num / 1_000_000;
+    return `${Number.isInteger(m) ? m.toFixed(0) : m.toFixed(1)}M`;
+  }
+  if (Math.abs(num) >= 1_000) {
+    const k = num / 1_000;
+    return `${Number.isInteger(k) || Math.abs(k) >= 100 ? Math.round(k) : k.toFixed(1)}K`;
+  }
+  return String(Math.round(num));
+}
+
+export function formatShortChartDate(isoDate: string): string {
+  const parts = isoDate.slice(0, 10).split('-');
+  if (parts.length !== 3) return isoDate;
+  const monthIdx = Number(parts[1]) - 1;
+  const day = Number(parts[2]);
+  const monthLabel = MONTH_SHORT_NAMES[monthIdx] ?? parts[1];
+  return `${day} ${monthLabel}`;
+}
+
+export function getTodayLocalIso(now = new Date()): string {
+  return toLocalIsoDate(now);
+}
+
+/**
+ * Normalizes daily sales points across [from, to] (zero-filling gaps for ranges
+ * up to 62 days so the Sales by Date area curve renders continuously and includes
+ * today's marker if today falls in range).
+ */
+export function buildContinuousDailySeries(
+  daily: SalesSummaryDailyPoint[],
+  from: string,
+  to: string,
+  todayIso = toLocalIsoDate(new Date()),
+): SalesSummaryDailyPoint[] {
+  const byDate = new Map<string, SalesSummaryDailyPoint>();
+  for (const pt of daily) {
+    const key = pt.date.slice(0, 10);
+    const existing = byDate.get(key);
+    if (existing) {
+      existing.orders += Number(pt.orders) || 0;
+      existing.revenue += Number(pt.revenue) || 0;
+    } else {
+      byDate.set(key, {
+        date: key,
+        orders: Number(pt.orders) || 0,
+        revenue: Number(pt.revenue) || 0,
+      });
+    }
+  }
+
+  const start = new Date(`${from}T00:00:00`);
+  const end = new Date(`${to}T00:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) {
+    return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  const dayDiff = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+  if (dayDiff <= 62) {
+    const result: SalesSummaryDailyPoint[] = [];
+    const cursor = new Date(start);
+    for (let i = 0; i < dayDiff; i += 1) {
+      const iso = toLocalIsoDate(cursor);
+      result.push(byDate.get(iso) ?? { date: iso, orders: 0, revenue: 0 });
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return result;
+  }
+
+  if (todayIso >= from && todayIso <= to && !byDate.has(todayIso)) {
+    byDate.set(todayIso, { date: todayIso, orders: 0, revenue: 0 });
+  }
+  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 }

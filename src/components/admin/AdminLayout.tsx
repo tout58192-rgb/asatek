@@ -5,6 +5,7 @@ import {
   BarChart3,
   ExternalLink,
   FolderTree,
+  Globe,
   Inbox,
   LayoutDashboard,
   LogOut,
@@ -16,6 +17,7 @@ import {
   X,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useI18n } from '../../contexts/LanguageContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useDashboardCounts } from '../../hooks/useInquiries';
 import { isSupabaseConfigured, supabase } from '../../lib/supabase';
@@ -63,6 +65,7 @@ function playNotificationBeep(ctxRef: React.MutableRefObject<AudioContext | null
 
 export function AdminLayout({ title, children }: AdminLayoutProps) {
   const { admin, logout } = useAuth();
+  const { lang, dir, toggleLang } = useI18n();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
@@ -275,7 +278,7 @@ export function AdminLayout({ title, children }: AdminLayoutProps) {
   );
 
   return (
-    <div dir="ltr" lang="en" className="min-h-screen flex bg-[var(--bg-alt)] text-[var(--ink)]">
+    <div dir={dir} lang={lang} className="min-h-screen flex bg-[var(--bg-alt)] text-[var(--ink)]">
       {/* Desktop Sidebar */}
       <aside className="hidden lg:block shrink-0">{sidebarContent}</aside>
 
@@ -312,25 +315,37 @@ export function AdminLayout({ title, children }: AdminLayoutProps) {
             </h1>
           </div>
 
-          <button
-            type="button"
-            onClick={toggleMute}
-            aria-label={muted ? 'Unmute new order sound' : 'Mute new order sound'}
-            title={muted ? 'Sound alerts muted' : 'Sound alerts enabled'}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--line)] px-3 py-1.5 text-xs font-medium text-[var(--ink-soft)] hover:text-[var(--ink)] hover:bg-[var(--bg-alt)] cursor-pointer shrink-0"
-          >
-            {muted ? (
-              <>
-                <VolumeX className="w-4 h-4 text-[var(--ink-soft)]" />
-                <span className="hidden sm:inline">Muted</span>
-              </>
-            ) : (
-              <>
-                <Volume2 className="w-4 h-4 text-[var(--brand-red)]" />
-                <span className="hidden sm:inline">Alerts On</span>
-              </>
-            )}
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={toggleLang}
+              aria-label="Toggle language"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--line)] px-2.5 py-1.5 text-xs font-medium text-[var(--ink-soft)] hover:text-[var(--ink)] hover:bg-[var(--bg-alt)] cursor-pointer shrink-0"
+            >
+              <Globe className="w-3.5 h-3.5" />
+              <span>{lang === 'en' ? 'اردو' : 'EN'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={toggleMute}
+              aria-label={muted ? 'Unmute new order sound' : 'Mute new order sound'}
+              title={muted ? 'Sound alerts muted' : 'Sound alerts enabled'}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--line)] px-3 py-1.5 text-xs font-medium text-[var(--ink-soft)] hover:text-[var(--ink)] hover:bg-[var(--bg-alt)] cursor-pointer shrink-0"
+            >
+              {muted ? (
+                <>
+                  <VolumeX className="w-4 h-4 text-[var(--ink-soft)]" />
+                  <span className="hidden sm:inline">Muted</span>
+                </>
+              ) : (
+                <>
+                  <Volume2 className="w-4 h-4 text-[var(--brand-red)]" />
+                  <span className="hidden sm:inline">Alerts On</span>
+                </>
+              )}
+            </button>
+          </div>
         </header>
 
         <main className="flex-1 p-4 md:p-6 max-w-[1280px] w-full mx-auto">

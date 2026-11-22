@@ -193,6 +193,7 @@
     "errorTitle": "Could not check order status",
     "placedOn": "Placed on",
     "lastUpdated": "Last updated",
+    "refresh": "Refresh",
     "autoRefreshNote": "Status updates automatically every 30 seconds",
     "itemsHeading": "Order Items",
     "productCol": "Product",
@@ -201,8 +202,12 @@
     "priceCol": "Unit Rate",
     "lineTotalCol": "Total",
     "totalLabel": "Order Total",
-    "skippedTitle": "Order skipped / cancelled",
-    "skippedDesc": "This order was cancelled or could not be processed. Please contact our factory desk if you need help.",
+    "confirmedTitle": "Confirmed",
+    "confirmedDesc": "Your order has been confirmed by our Sadiqabad factory desk.",
+    "skippedTitle": "Skipped",
+    "skippedDesc": "This order was skipped. Please contact our factory desk if you need help.",
+    "cancelledTitle": "Cancelled",
+    "cancelledDesc": "This order was cancelled. Please contact our factory desk if you have any questions.",
     "skipReasonLabel": "Reason",
     "contactFactory": "Contact Factory on WhatsApp",
     "steps": {
@@ -217,7 +222,8 @@
       "confirmed": "Confirmed",
       "dispatched": "Dispatched",
       "completed": "Completed",
-      "skipped": "Skipped / Cancelled",
+      "skipped": "Skipped",
+      "cancelled": "Cancelled",
       "closed": "Closed"
     }
   },

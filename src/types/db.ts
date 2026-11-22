@@ -13,6 +13,7 @@ export type InquiryStatus =
   | 'dispatched'
   | 'completed'
   | 'skipped'
+  | 'cancelled'
   | 'closed';
 
 export interface Profile {
@@ -139,6 +140,7 @@ export interface SalesSummaryTotals {
   orders: number;
   new_orders: number;
   skipped_orders: number;
+  cancelled_orders?: number;
   confirmed_orders: number;
   revenue: number;
   avg_order_value: number;

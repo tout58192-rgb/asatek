@@ -181,30 +181,38 @@ export interface UpdateInquiryPayload {
   status?: InquiryStatus;
   admin_note?: string | null;
   skip_reason?: string | null;
-  confirmed_at?: string | null;
-  status_updated_at?: string | null;
 }
 
 export async function updateInquiry(
   id: string,
   updates: UpdateInquiryPayload,
 ): Promise<void> {
+  const safeUpdates: UpdateInquiryPayload = {};
+  if (updates.status !== undefined) safeUpdates.status = updates.status;
+  if (updates.admin_note !== undefined) safeUpdates.admin_note = updates.admin_note;
+  if (updates.skip_reason !== undefined) safeUpdates.skip_reason = updates.skip_reason;
+
   if (!isSupabaseConfigured || !supabase) {
     const idx = mockStore.inquiries.findIndex((i) => i.id === id);
     if (idx >= 0) {
+      const nowIso = new Date().toISOString();
       mockStore.inquiries[idx] = {
         ...mockStore.inquiries[idx],
-        ...updates,
-        status_updated_at:
-          updates.status_updated_at ??
-          (updates.status ? new Date().toISOString() : mockStore.inquiries[idx].status_updated_at),
+        ...safeUpdates,
+        status_updated_at: safeUpdates.status
+          ? nowIso
+          : mockStore.inquiries[idx].status_updated_at,
+        confirmed_at:
+          safeUpdates.status === 'confirmed'
+            ? mockStore.inquiries[idx].confirmed_at ?? nowIso
+            : mockStore.inquiries[idx].confirmed_at,
       };
       saveMockStore();
     }
     return;
   }
 
-  const { error } = await supabase.from('inquiries').update(updates).eq('id', id);
+  const { error } = await supabase.from('inquiries').update(safeUpdates).eq('id', id);
   if (error) throw error;
 }
 
@@ -277,6 +285,7 @@ export async function getInquiryStatusCounts(
     dispatched: 0,
     completed: 0,
     skipped: 0,
+    cancelled: 0,
     closed: 0,
   };
   for (const row of rows) {
@@ -336,6 +345,9 @@ export async function getAdminSalesSummary(
       orders: Number(raw.totals?.orders ?? 0),
       new_orders: Number(raw.totals?.new_orders ?? 0),
       skipped_orders: Number(raw.totals?.skipped_orders ?? 0),
+      ...(raw.totals?.cancelled_orders !== undefined
+        ? { cancelled_orders: Number(raw.totals.cancelled_orders) }
+        : {}),
       confirmed_orders: Number(raw.totals?.confirmed_orders ?? 0),
       revenue: Number(raw.totals?.revenue ?? 0),
       avg_order_value: Number(raw.totals?.avg_order_value ?? 0),

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { RefreshCw, Search } from 'lucide-react';
 import { AdminLayout } from '../../components/admin/AdminLayout';
+import { OrderStatusControls } from '../../components/admin/OrderStatusControls';
 import {
   InquiryChannelBadge,
   InquiryStatusBadge,
@@ -60,9 +61,10 @@ export default function AdminInquiries() {
   const statusTabs: Array<{ key: InquiryStatus | 'all'; label: string }> = [
     { key: 'new', label: 'New' },
     { key: 'confirmed', label: 'Confirmed' },
+    { key: 'skipped', label: 'Skipped' },
+    { key: 'cancelled', label: 'Cancelled' },
     { key: 'dispatched', label: 'Dispatched' },
     { key: 'completed', label: 'Completed' },
-    { key: 'skipped', label: 'Skipped' },
     { key: 'all', label: 'All' },
   ];
 
@@ -216,26 +218,25 @@ export default function AdminInquiries() {
             <table className="w-full text-sm text-start">
               <thead>
                 <tr className="border-b border-[var(--line)] bg-[var(--bg-alt)] text-xs font-semibold text-[var(--ink-soft)]">
-                  <th className="px-4 py-3 text-start">Reference</th>
-                  <th className="px-4 py-3 text-start">Date / Time</th>
-                  <th className="px-4 py-3 text-start">Buyer</th>
-                  <th className="px-4 py-3 text-start">City</th>
-                  <th className="px-4 py-3 text-start">Channel</th>
-                  <th className="px-4 py-3 text-start">Items &amp; Total</th>
-                  <th className="px-4 py-3 text-start">Status</th>
-                  <th className="px-4 py-3 text-end">Action</th>
+                  <th className="px-2.5 py-3 text-start">Reference</th>
+                  <th className="px-2 py-3 text-start">Date / Time</th>
+                  <th className="px-2 py-3 text-start">Buyer</th>
+                  <th className="px-2 py-3 text-start">City</th>
+                  <th className="px-2 py-3 text-start">Items &amp; Total</th>
+                  <th className="px-2 py-3 text-start">Status</th>
+                  <th className="px-2.5 py-3 text-end">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {isLoading ? (
                   <>
-                    <TableRowSkeleton cols={8} />
-                    <TableRowSkeleton cols={8} />
+                    <TableRowSkeleton cols={7} />
+                    <TableRowSkeleton cols={7} />
                   </>
                 ) : (inquiries ?? []).length === 0 ? (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={7}
                       className="px-4 py-10 text-center text-sm text-[var(--ink-soft)]"
                     >
                       No orders or inquiries found.
@@ -259,82 +260,101 @@ export default function AdminInquiries() {
                           inq.status === 'new' ? 'bg-red-50/50' : ''
                         }`}
                       >
-                        <td className="px-4 py-3 font-mono-num font-semibold whitespace-nowrap">
+                        <td className="px-2.5 py-3 font-mono-num text-xs font-semibold">
                           <Link
                             to={`/admin/inquiries/${inq.id}`}
-                            className="text-[var(--brand-red)] hover:underline"
+                            className="text-[var(--brand-red)] hover:underline whitespace-nowrap"
                           >
                             {inq.reference}
                           </Link>
-                          <div className="mt-1">
+                          <div className="mt-1 flex flex-wrap items-center gap-1">
                             <Badge tone="neutral">
                               {inq.type === 'quote' ? 'Order' : 'Contact'}
                             </Badge>
+                            <InquiryChannelBadge channel={inq.channel} />
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-xs text-[var(--ink-soft)] tabular-nums whitespace-nowrap">
-                          {formatDateTime(inq.created_at)}
+                        <td className="px-2 py-3 text-[11px] text-[var(--ink-soft)] tabular-nums">
+                          <div className="w-[72px] leading-snug">
+                            {formatDateTime(inq.created_at)}
+                          </div>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-2 py-3 text-xs">
                           <p className="font-medium text-[var(--ink)]">
                             {!replyDigits && inq.name === 'WhatsApp visitor'
                               ? 'WhatsApp visitor'
                               : inq.name}
                           </p>
-                          <p className="text-xs text-[var(--ink-soft)] tabular-nums">
+                          <p className="text-[11px] text-[var(--ink-soft)] tabular-nums">
                             {replyDigits ? inq.phone : '—'}
                           </p>
                         </td>
-                        <td className="px-4 py-3 text-[var(--ink-soft)]">
+                        <td className="px-2 py-3 text-xs text-[var(--ink-soft)]">
                           {inq.city || '—'}
                         </td>
-                        <td className="px-4 py-3">
-                          <InquiryChannelBadge channel={inq.channel} />
-                        </td>
-                        <td className="px-4 py-3 min-w-[210px]">
-                          {inq.items.length === 0 ? (
-                            <span className="text-xs text-[var(--ink-soft)]">
-                              {inq.message ? 'Message inquiry' : '—'}
-                            </span>
-                          ) : (
-                            <div className="space-y-1">
-                              {inq.items.map((item) => (
-                                <div
-                                  key={item.id}
-                                  className="text-xs text-[var(--ink)] leading-snug"
-                                >
-                                  <span className="font-medium">
-                                    {item.product_name}
-                                  </span>{' '}
-                                  <span className="font-mono-num text-[var(--ink-soft)]">
-                                    × {item.quantity}
-                                  </span>
-                                  {item.unit_price !== null && (
-                                    <span className="text-[var(--ink-soft)] tabular-nums">
-                                      {' '}
-                                      @ {formatPKR(item.unit_price)}
+                        <td className="px-2 py-3">
+                          <div className="w-[132px]">
+                            {inq.items.length === 0 ? (
+                              <span className="text-xs text-[var(--ink-soft)]">
+                                {inq.message ? 'Message inquiry' : '—'}
+                              </span>
+                            ) : (
+                              <div className="space-y-1">
+                                {inq.items.map((item) => (
+                                  <div
+                                    key={item.id}
+                                    className="text-xs text-[var(--ink)] leading-snug"
+                                  >
+                                    <span className="font-medium">
+                                      {item.product_name}
+                                    </span>{' '}
+                                    <span className="font-mono-num text-[var(--ink-soft)]">
+                                      × {item.quantity}
                                     </span>
-                                  )}
-                                </div>
-                              ))}
-                              {total > 0 && (
-                                <p className="text-xs font-bold text-[var(--brand-red)] tabular-nums pt-0.5">
-                                  Total: {formatPKR(total)}
+                                    {item.unit_price !== null && (
+                                      <span className="text-[var(--ink-soft)] tabular-nums">
+                                        {' '}
+                                        @ {formatPKR(item.unit_price)}
+                                      </span>
+                                    )}
+                                  </div>
+                                ))}
+                                {total > 0 && (
+                                  <p className="text-xs font-bold text-[var(--brand-red)] tabular-nums pt-0.5">
+                                    Total: {formatPKR(total)}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-2.5 py-3">
+                          <div className="space-y-2">
+                            <InquiryStatusBadge status={inq.status} />
+                            {(inq.status === 'skipped' || inq.status === 'cancelled') &&
+                              inq.skip_reason && (
+                                <p
+                                  className={`text-[11px] max-w-[196px] truncate ${
+                                    inq.status === 'skipped'
+                                      ? 'text-[var(--warn)]'
+                                      : 'text-[var(--brand-red-dark)]'
+                                  }`}
+                                  title={inq.skip_reason}
+                                >
+                                  {inq.skip_reason}
                                 </p>
                               )}
-                            </div>
-                          )}
+                            <OrderStatusControls
+                              compact
+                              inquiryId={inq.id}
+                              reference={inq.reference}
+                              currentStatus={inq.status}
+                              currentSkipReason={inq.skip_reason}
+                            />
+                          </div>
                         </td>
-                        <td className="px-4 py-3">
-                          <InquiryStatusBadge status={inq.status} />
-                          {inq.status === 'skipped' && inq.skip_reason && (
-                            <p className="text-[11px] text-[var(--brand-red-dark)] mt-1 max-w-[140px] truncate">
-                              {inq.skip_reason}
-                            </p>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-end whitespace-nowrap">
-                          <div className="inline-flex items-center gap-2">
+                        <td className="px-2.5 py-3 text-end whitespace-nowrap">
+                          <div className="inline-flex items-center gap-1.5">
                             {replyHref && (
                               <a
                                 href={replyHref}
@@ -342,9 +362,9 @@ export default function AdminInquiries() {
                                 rel="noopener noreferrer"
                                 aria-label={`Open ${inq.reference} in WhatsApp`}
                                 title="Open in WhatsApp"
-                                className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-[var(--whatsapp)] text-white hover:bg-[var(--whatsapp-dark)]"
+                                className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-[var(--whatsapp)] text-white hover:bg-[var(--whatsapp-dark)]"
                               >
-                                <WhatsAppIcon className="w-4 h-4" />
+                                <WhatsAppIcon className="w-3.5 h-3.5" />
                               </a>
                             )}
                             <Link

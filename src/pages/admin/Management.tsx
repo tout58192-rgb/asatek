@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Ban,
@@ -17,12 +17,13 @@ import {
 } from '../../components/admin/StatusBadge';
 import { Button } from '../../components/ui/Button';
 import { TableRowSkeleton } from '../../components/ui/Skeleton';
+import { useI18n } from '../../contexts/LanguageContext';
 import { useAdminSalesSummary, useInquiries } from '../../hooks/useInquiries';
 import { formatDateTime, formatPKR, getErrorMessage } from '../../lib/format';
 import {
   buildOrdersCsv,
   findBestDay,
-  findBestMonth,
+  formatShortChartDate,
   getInquiryTotalAmount,
   getPresetDateRange,
   type DateRangePreset,
@@ -32,7 +33,52 @@ const ManagementCharts = lazy(
   () => import('../../components/admin/ManagementCharts'),
 );
 
+function useCountUp(target: number, duration = 650): number {
+  const [display, setDisplay] = useState(target);
+  const currentRef = useRef(target);
+
+  useEffect(() => {
+    const prefersReduced =
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+    if (prefersReduced || typeof window === 'undefined' || !window.requestAnimationFrame) {
+      currentRef.current = target;
+      setDisplay(target);
+      return;
+    }
+
+    const fromVal = currentRef.current;
+    if (fromVal === target) {
+      setDisplay(target);
+      return;
+    }
+
+    let rafId = 0;
+    const startTime = performance.now();
+
+    const step = (now: number) => {
+      const progress = Math.min(1, (now - startTime) / duration);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const nextVal = Math.round(fromVal + (target - fromVal) * eased);
+      currentRef.current = nextVal;
+      setDisplay(nextVal);
+      if (progress < 1) {
+        rafId = window.requestAnimationFrame(step);
+      }
+    };
+
+    rafId = window.requestAnimationFrame(step);
+    return () => window.cancelAnimationFrame(rafId);
+  }, [target, duration]);
+
+  return display;
+}
+
 export default function AdminManagement() {
+  const { lang } = useI18n();
+  const isUr = lang === 'ur';
+
   const defaultRange = useMemo(() => getPresetDateRange('last_30_days'), []);
   const [preset, setPreset] = useState<DateRangePreset>('last_30_days');
   const [customFrom, setCustomFrom] = useState(defaultRange.from);
@@ -83,22 +129,39 @@ export default function AdminManagement() {
     URL.revokeObjectURL(url);
   };
 
-  const bestDay = summary ? findBestDay(summary.daily) : null;
-  const bestMonth = summary ? findBestMonth(summary.monthly) : null;
+  const bestDay = useMemo(
+    () => (summary ? findBestDay(summary.daily) : null),
+    [summary],
+  );
+
+  const cancelledCount =
+    summary?.totals.cancelled_orders ??
+    summary?.by_status.find((s) => s.status === 'cancelled')?.orders ??
+    0;
+  const skippedAndCancelled =
+    (summary?.totals.skipped_orders ?? 0) + cancelledCount;
+
+  const animatedRevenue = useCountUp(summary?.totals.revenue ?? 0);
+  const animatedOrders = useCountUp(summary?.totals.orders ?? 0);
+  const animatedConfirmed = useCountUp(summary?.totals.confirmed_orders ?? 0);
+  const animatedNew = useCountUp(summary?.totals.new_orders ?? 0);
+  const animatedSkippedCancelled = useCountUp(skippedAndCancelled);
+  const animatedAov = useCountUp(summary?.totals.avg_order_value ?? 0);
+  const animatedBestDayRevenue = useCountUp(bestDay?.revenue ?? 0);
 
   const presets: Array<{ id: DateRangePreset; label: string }> = [
-    { id: 'today', label: 'Today' },
-    { id: 'last_7_days', label: 'Last 7 days' },
-    { id: 'last_30_days', label: 'Last 30 days' },
-    { id: 'this_month', label: 'This month' },
-    { id: 'last_month', label: 'Last month' },
-    { id: 'custom', label: 'Custom range' },
+    { id: 'today', label: isUr ? 'آج' : 'Today' },
+    { id: 'last_7_days', label: isUr ? 'پچھلے 7 دن' : 'Last 7 days' },
+    { id: 'last_30_days', label: isUr ? 'پچھلے 30 دن' : 'Last 30 days' },
+    { id: 'this_month', label: isUr ? 'یہ مہینہ' : 'This month' },
+    { id: 'last_month', label: isUr ? 'پچھلا مہینہ' : 'Last month' },
+    { id: 'custom', label: isUr ? 'مخصوص تاریخ' : 'Custom range' },
   ];
 
   const recentOrders = (orders ?? []).slice(0, 20);
 
   return (
-    <AdminLayout title="Management & Reports">
+    <AdminLayout title={isUr ? 'مینجمنٹ اور رپورٹس' : 'Management & Reports'}>
       <div className="space-y-6">
         {/* Date Range Toolbar */}
         <div className="rounded-xl border border-[var(--line)] bg-white p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -127,7 +190,9 @@ export default function AdminManagement() {
                   onChange={(e) => setCustomFrom(e.target.value)}
                   className="min-h-[38px] rounded-lg border border-[var(--line)] bg-white px-2.5 text-xs sm:text-sm"
                 />
-                <span className="text-xs text-[var(--ink-soft)]">to</span>
+                <span className="text-xs text-[var(--ink-soft)]">
+                  {isUr ? 'تا' : 'to'}
+                </span>
                 <input
                   type="date"
                   aria-label="Report end date"
@@ -148,7 +213,7 @@ export default function AdminManagement() {
               disabled={!orders || orders.length === 0}
             >
               <Download className="w-4 h-4" />
-              <span>Export CSV</span>
+              <span>{isUr ? 'CSV برآمد کریں' : 'Export CSV'}</span>
             </Button>
             <Button
               type="button"
@@ -159,7 +224,7 @@ export default function AdminManagement() {
               <RefreshCw
                 className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`}
               />
-              <span>Refresh</span>
+              <span>{isUr ? 'تازہ کریں' : 'Refresh'}</span>
             </Button>
           </div>
         </div>
@@ -181,30 +246,36 @@ export default function AdminManagement() {
               size="sm"
               onClick={handleRefresh}
             >
-              Retry
+              {isUr ? 'دوبارہ کوشش کریں' : 'Retry'}
             </Button>
           </div>
         )}
 
-        {/* KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="rounded-xl border border-[var(--line)] bg-white p-5 space-y-1.5 sm:col-span-2 lg:col-span-1">
+        {/* 7 KPI Cards */}
+        <div
+          data-testid="management-kpi-grid"
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
+        >
+          <div className="rounded-xl border border-[var(--line)] bg-white p-5 space-y-1.5 sm:col-span-2 lg:col-span-2">
             <div className="flex items-center justify-between text-xs font-medium text-[var(--ink-soft)]">
-              <span>Total Revenue</span>
+              <span>{isUr ? 'کل آمدنی' : 'Total revenue'}</span>
               <TrendingUp className="w-4 h-4 text-[var(--brand-red)]" />
             </div>
             {summaryLoading ? (
-              <div className="h-8 w-32 rounded skeleton-shimmer" />
+              <div className="h-8 w-36 rounded skeleton-shimmer" />
             ) : (
               <>
                 <p
                   data-testid="kpi-total-revenue"
-                  className="text-2xl font-bold text-[var(--brand-red)] tabular-nums"
+                  dir="ltr"
+                  className="text-2xl font-bold text-[var(--brand-red)] tabular-nums text-start"
                 >
-                  {formatPKR(summary?.totals.revenue ?? 0)}
+                  {formatPKR(animatedRevenue)}
                 </p>
                 <p className="text-[11px] text-[var(--ink-soft)] leading-snug">
-                  Revenue counts confirmed, dispatched and completed orders at wholesale slab prices.
+                  {isUr
+                    ? 'آمدنی میں کنفرم، ڈسپیچ اور مکمل آرڈرز شامل ہیں؛ اسکپ اور منسوخ شامل نہیں۔'
+                    : 'Counts confirmed, dispatched and completed orders; excludes skipped and cancelled.'}
                 </p>
               </>
             )}
@@ -212,109 +283,118 @@ export default function AdminManagement() {
 
           <div className="rounded-xl border border-[var(--line)] bg-white p-5 space-y-1.5">
             <div className="flex items-center justify-between text-xs font-medium text-[var(--ink-soft)]">
-              <span>Orders</span>
+              <span>{isUr ? 'آرڈرز' : 'Orders'}</span>
               <ShoppingBag className="w-4 h-4 text-[var(--ink-soft)]" />
             </div>
             {summaryLoading ? (
               <div className="h-8 w-16 rounded skeleton-shimmer" />
             ) : (
-              <p className="text-2xl font-bold text-[var(--ink)] tabular-nums">
-                {summary?.totals.orders ?? 0}
+              <p
+                data-testid="kpi-orders"
+                dir="ltr"
+                className="text-2xl font-bold text-[var(--ink)] tabular-nums text-start"
+              >
+                {animatedOrders}
               </p>
             )}
           </div>
 
           <div className="rounded-xl border border-[var(--line)] bg-white p-5 space-y-1.5">
             <div className="flex items-center justify-between text-xs font-medium text-[var(--ink-soft)]">
-              <span>Confirmed Orders</span>
+              <span>{isUr ? 'کنفرم' : 'Confirmed'}</span>
               <CheckCircle2 className="w-4 h-4 text-[var(--accent-green)]" />
             </div>
             {summaryLoading ? (
               <div className="h-8 w-16 rounded skeleton-shimmer" />
             ) : (
-              <p className="text-2xl font-bold text-[var(--accent-green)] tabular-nums">
-                {summary?.totals.confirmed_orders ?? 0}
+              <p
+                data-testid="kpi-confirmed"
+                dir="ltr"
+                className="text-2xl font-bold text-[var(--accent-green)] tabular-nums text-start"
+              >
+                {animatedConfirmed}
               </p>
             )}
           </div>
 
           <div className="rounded-xl border border-[var(--line)] bg-white p-5 space-y-1.5">
             <div className="flex items-center justify-between text-xs font-medium text-[var(--ink-soft)]">
-              <span>New Orders</span>
+              <span>{isUr ? 'نئے آرڈرز' : 'New'}</span>
               <Inbox className="w-4 h-4 text-[var(--brand-red)]" />
             </div>
             {summaryLoading ? (
               <div className="h-8 w-16 rounded skeleton-shimmer" />
             ) : (
-              <p className="text-2xl font-bold text-[var(--brand-red)] tabular-nums">
-                {summary?.totals.new_orders ?? 0}
+              <p
+                data-testid="kpi-new"
+                dir="ltr"
+                className="text-2xl font-bold text-[var(--brand-red)] tabular-nums text-start"
+              >
+                {animatedNew}
               </p>
             )}
           </div>
 
           <div className="rounded-xl border border-[var(--line)] bg-white p-5 space-y-1.5">
             <div className="flex items-center justify-between text-xs font-medium text-[var(--ink-soft)]">
-              <span>Skipped Orders</span>
+              <span>
+                {isUr ? 'اسکپ + منسوخ' : 'Skipped + Cancelled'}
+              </span>
               <Ban className="w-4 h-4 text-[var(--ink-soft)]" />
             </div>
             {summaryLoading ? (
               <div className="h-8 w-16 rounded skeleton-shimmer" />
             ) : (
-              <p className="text-2xl font-bold text-[var(--ink)] tabular-nums">
-                {summary?.totals.skipped_orders ?? 0}
+              <p
+                data-testid="kpi-skipped-cancelled"
+                dir="ltr"
+                className="text-2xl font-bold text-[var(--ink)] tabular-nums text-start"
+              >
+                {animatedSkippedCancelled}
               </p>
             )}
           </div>
 
           <div className="rounded-xl border border-[var(--line)] bg-white p-5 space-y-1.5">
             <div className="flex items-center justify-between text-xs font-medium text-[var(--ink-soft)]">
-              <span>Average Order Value</span>
+              <span>
+                {isUr ? 'اوسط آرڈر ویلیو' : 'Average order value'}
+              </span>
               <TrendingUp className="w-4 h-4 text-[var(--ink-soft)]" />
             </div>
             {summaryLoading ? (
               <div className="h-8 w-28 rounded skeleton-shimmer" />
             ) : (
-              <p className="text-2xl font-bold text-[var(--ink)] tabular-nums">
-                {formatPKR(summary?.totals.avg_order_value ?? 0)}
+              <p
+                data-testid="kpi-aov"
+                dir="ltr"
+                className="text-2xl font-bold text-[var(--ink)] tabular-nums text-start"
+              >
+                {formatPKR(animatedAov)}
               </p>
             )}
           </div>
 
           <div className="rounded-xl border border-[var(--line)] bg-white p-5 space-y-1.5">
             <div className="flex items-center justify-between text-xs font-medium text-[var(--ink-soft)]">
-              <span>Best Day</span>
+              <span>{isUr ? 'بہترین دن' : 'Best day'}</span>
               <CalendarRange className="w-4 h-4 text-[var(--ink-soft)]" />
             </div>
             {summaryLoading ? (
               <div className="h-8 w-28 rounded skeleton-shimmer" />
             ) : bestDay ? (
               <div>
-                <p className="text-xl font-bold text-[var(--ink)] tabular-nums">
-                  {formatPKR(bestDay.revenue)}
+                <p
+                  data-testid="kpi-best-day"
+                  dir="ltr"
+                  className="text-xl font-bold text-[var(--ink)] tabular-nums text-start"
+                >
+                  {formatPKR(animatedBestDayRevenue)}
                 </p>
                 <p className="text-xs text-[var(--ink-soft)] tabular-nums">
-                  {bestDay.date} · {bestDay.orders} orders
-                </p>
-              </div>
-            ) : (
-              <p className="text-xl font-bold text-[var(--ink-soft)]">—</p>
-            )}
-          </div>
-
-          <div className="rounded-xl border border-[var(--line)] bg-white p-5 space-y-1.5">
-            <div className="flex items-center justify-between text-xs font-medium text-[var(--ink-soft)]">
-              <span>Best Month</span>
-              <CalendarRange className="w-4 h-4 text-[var(--ink-soft)]" />
-            </div>
-            {summaryLoading ? (
-              <div className="h-8 w-28 rounded skeleton-shimmer" />
-            ) : bestMonth ? (
-              <div>
-                <p className="text-xl font-bold text-[var(--ink)] tabular-nums">
-                  {formatPKR(bestMonth.revenue)}
-                </p>
-                <p className="text-xs text-[var(--ink-soft)] tabular-nums">
-                  {bestMonth.month} · {bestMonth.orders} orders
+                  <span dir="ltr">{formatShortChartDate(bestDay.date)}</span> ·{' '}
+                  <span dir="ltr">{bestDay.orders}</span>{' '}
+                  {isUr ? 'آرڈرز' : 'orders'}
                 </p>
               </div>
             ) : (
@@ -323,20 +403,12 @@ export default function AdminManagement() {
           </div>
         </div>
 
-        {/* Charts (Lazy-loaded Recharts chunk) */}
+        {/* Single Chart: Sales by date (Lazy-loaded Recharts chunk) */}
         {summaryLoading ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="h-80 rounded-xl skeleton-shimmer" />
-            <div className="h-80 rounded-xl skeleton-shimmer" />
-          </div>
+          <div className="h-[390px] rounded-2xl skeleton-shimmer" />
         ) : summary ? (
           <Suspense
-            fallback={
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="h-80 rounded-xl skeleton-shimmer" />
-                <div className="h-80 rounded-xl skeleton-shimmer" />
-              </div>
-            }
+            fallback={<div className="h-[390px] rounded-2xl skeleton-shimmer" />}
           >
             <ManagementCharts summary={summary} />
           </Suspense>
@@ -347,17 +419,21 @@ export default function AdminManagement() {
           <div className="px-5 py-4 border-b border-[var(--line)] flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-bold text-[var(--ink)]">
-                Recent Orders ({orders?.length ?? 0})
+                {isUr
+                  ? `حالیہ آرڈرز (${orders?.length ?? 0})`
+                  : `Recent Orders (${orders?.length ?? 0})`}
               </h2>
-              <p className="text-xs text-[var(--ink-soft)]">
-                Showing {from} to {to}
+              <p className="text-xs text-[var(--ink-soft)] tabular-nums">
+                <span dir="ltr">
+                  {from} — {to}
+                </span>
               </p>
             </div>
             <Link
               to="/admin/inquiries"
               className="text-xs font-semibold text-[var(--brand-red)] hover:underline"
             >
-              Manage all orders →
+              {isUr ? 'تمام آرڈرز دیکھیں ←' : 'Manage all orders →'}
             </Link>
           </div>
 
@@ -365,13 +441,27 @@ export default function AdminManagement() {
             <table className="w-full text-sm text-start">
               <thead>
                 <tr className="border-b border-[var(--line)] bg-[var(--bg-alt)] text-xs font-semibold text-[var(--ink-soft)]">
-                  <th className="px-4 py-3 text-start">Reference</th>
-                  <th className="px-4 py-3 text-start">Date</th>
-                  <th className="px-4 py-3 text-start">Buyer</th>
-                  <th className="px-4 py-3 text-start">City</th>
-                  <th className="px-4 py-3 text-start">Channel</th>
-                  <th className="px-4 py-3 text-start">Status</th>
-                  <th className="px-4 py-3 text-end">Total</th>
+                  <th className="px-4 py-3 text-start">
+                    {isUr ? 'ریفرنس' : 'Reference'}
+                  </th>
+                  <th className="px-4 py-3 text-start">
+                    {isUr ? 'تاریخ' : 'Date'}
+                  </th>
+                  <th className="px-4 py-3 text-start">
+                    {isUr ? 'خریدار' : 'Buyer'}
+                  </th>
+                  <th className="px-4 py-3 text-start">
+                    {isUr ? 'شہر' : 'City'}
+                  </th>
+                  <th className="px-4 py-3 text-start">
+                    {isUr ? 'ذریعہ' : 'Channel'}
+                  </th>
+                  <th className="px-4 py-3 text-start">
+                    {isUr ? 'اسٹیٹس' : 'Status'}
+                  </th>
+                  <th className="px-4 py-3 text-end">
+                    {isUr ? 'کل رقم' : 'Total'}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -386,7 +476,9 @@ export default function AdminManagement() {
                       colSpan={7}
                       className="px-4 py-8 text-center text-sm text-[var(--ink-soft)]"
                     >
-                      No orders found in this date range.
+                      {isUr
+                        ? 'اس مدت میں کوئی آرڈر نہیں ملا۔'
+                        : 'No orders found in this date range.'}
                     </td>
                   </tr>
                 ) : (
@@ -404,7 +496,7 @@ export default function AdminManagement() {
                         </Link>
                       </td>
                       <td className="px-4 py-3 text-xs text-[var(--ink-soft)] tabular-nums whitespace-nowrap">
-                        {formatDateTime(inq.created_at)}
+                        <span dir="ltr">{formatDateTime(inq.created_at)}</span>
                       </td>
                       <td className="px-4 py-3">
                         <span className="font-medium text-[var(--ink)]">
@@ -421,7 +513,9 @@ export default function AdminManagement() {
                         <InquiryStatusBadge status={inq.status} />
                       </td>
                       <td className="px-4 py-3 text-end font-semibold tabular-nums">
-                        {formatPKR(getInquiryTotalAmount(inq))}
+                        <span dir="ltr">
+                          {formatPKR(getInquiryTotalAmount(inq))}
+                        </span>
                       </td>
                     </tr>
                   ))

@@ -5,11 +5,12 @@ import {
   CheckCircle2,
   Clock,
   PackageCheck,
+  RefreshCw,
   Search,
   Truck,
-  XCircle,
 } from 'lucide-react';
 import { Layout } from '../components/layout/Layout';
+import { CustomerOrderStatusCard } from '../components/order/CustomerOrderStatusCard';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -250,46 +251,96 @@ export default function Track() {
                         )}
                       </p>
                     </div>
-                    <Badge
-                      tone={
-                        order.status === 'skipped'
-                          ? 'red'
-                          : order.status === 'completed'
-                            ? 'green'
-                            : order.status === 'confirmed' ||
-                                order.status === 'dispatched'
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge
+                        tone={
+                          order.status === 'cancelled'
+                            ? 'red'
+                            : order.status === 'skipped' ||
+                                order.status === 'dispatched' ||
+                                order.status === 'contacted'
                               ? 'amber'
-                              : 'neutral'
-                      }
-                    >
-                      {t(`track.statuses.${order.status}`)}
-                    </Badge>
+                              : order.status === 'confirmed' ||
+                                  order.status === 'completed'
+                                ? 'green'
+                                : 'neutral'
+                        }
+                      >
+                        {t(`track.statuses.${order.status}`)}
+                      </Badge>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        disabled={isFetching}
+                        onClick={() => void refetch()}
+                      >
+                        <RefreshCw
+                          className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`}
+                        />
+                        <span>{t('track.refresh')}</span>
+                      </Button>
+                    </div>
                   </div>
 
-                  {/* Skipped Card vs Timeline */}
-                  {order.status === 'skipped' ? (
-                    <div
-                      data-testid="track-skipped-card"
-                      className="rounded-xl border border-red-300 bg-[var(--brand-red-light)] p-5 space-y-3"
-                    >
-                      <div className="flex items-start gap-3">
-                        <XCircle className="w-6 h-6 text-[var(--brand-red)] shrink-0 mt-0.5" />
-                        <div className="space-y-1">
-                          <h2 className="text-base font-bold text-[var(--brand-red-dark)]">
-                            {t('track.skippedTitle')}
-                          </h2>
-                          <p className="text-sm text-[var(--brand-red-dark)]">
-                            {t('track.skippedDesc')}
-                          </p>
-                          {order.skip_reason && (
-                            <p className="text-sm font-semibold text-[var(--ink)] pt-1">
-                              {t('track.skipReasonLabel')}: {order.skip_reason}
-                            </p>
-                          )}
-                        </div>
+                  {/* Confirmed / Skipped / Cancelled Status Card */}
+                  <CustomerOrderStatusCard
+                    status={order.status}
+                    skipReason={order.skip_reason}
+                    factorySupportHref={factorySupportHref}
+                  />
+
+                  {/* Timeline for non-skipped / non-cancelled orders */}
+                  {order.status !== 'skipped' && order.status !== 'cancelled' && (
+                    <div className="space-y-4">
+                      <div
+                        data-testid="track-timeline"
+                        className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2"
+                      >
+                        {steps.map((step, idx) => {
+                          const Icon = step.icon;
+                          const reached = activeStep >= idx;
+                          const isCurrent = activeStep === idx;
+                          return (
+                            <div
+                              key={step.key}
+                              className={`rounded-xl border p-3.5 flex items-center gap-3 transition-colors ${
+                                isCurrent
+                                  ? 'border-[var(--brand-red)] bg-[var(--brand-red-light)]'
+                                  : reached
+                                    ? 'border-green-200 bg-green-50/70'
+                                    : 'border-[var(--line)] bg-[var(--bg-alt)] opacity-60'
+                              }`}
+                            >
+                              <div
+                                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+                                  isCurrent
+                                    ? 'bg-[var(--brand-red)] text-white'
+                                    : reached
+                                      ? 'bg-[var(--accent-green)] text-white'
+                                      : 'bg-white border border-[var(--line)] text-[var(--ink-soft)]'
+                                }`}
+                              >
+                                <Icon className="w-4 h-4" />
+                              </div>
+                              <span
+                                className={`text-sm font-semibold ${
+                                  isCurrent
+                                    ? 'text-[var(--brand-red-dark)]'
+                                    : reached
+                                      ? 'text-[var(--ink)]'
+                                      : 'text-[var(--ink-soft)]'
+                                }`}
+                              >
+                                {step.label}
+                              </span>
+                            </div>
+                          );
+                        })}
                       </div>
-                      {factorySupportHref && (
-                        <div className="pt-1">
+
+                      {order.status !== 'confirmed' && factorySupportHref && (
+                        <div>
                           <a
                             href={factorySupportHref}
                             target="_blank"
@@ -301,52 +352,6 @@ export default function Track() {
                           </a>
                         </div>
                       )}
-                    </div>
-                  ) : (
-                    <div
-                      data-testid="track-timeline"
-                      className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2"
-                    >
-                      {steps.map((step, idx) => {
-                        const Icon = step.icon;
-                        const reached = activeStep >= idx;
-                        const isCurrent = activeStep === idx;
-                        return (
-                          <div
-                            key={step.key}
-                            className={`rounded-xl border p-3.5 flex items-center gap-3 transition-colors ${
-                              isCurrent
-                                ? 'border-[var(--brand-red)] bg-[var(--brand-red-light)]'
-                                : reached
-                                  ? 'border-green-200 bg-green-50/70'
-                                  : 'border-[var(--line)] bg-[var(--bg-alt)] opacity-60'
-                            }`}
-                          >
-                            <div
-                              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
-                                isCurrent
-                                  ? 'bg-[var(--brand-red)] text-white'
-                                  : reached
-                                    ? 'bg-[var(--accent-green)] text-white'
-                                    : 'bg-white border border-[var(--line)] text-[var(--ink-soft)]'
-                              }`}
-                            >
-                              <Icon className="w-4 h-4" />
-                            </div>
-                            <span
-                              className={`text-sm font-semibold ${
-                                isCurrent
-                                  ? 'text-[var(--brand-red-dark)]'
-                                  : reached
-                                    ? 'text-[var(--ink)]'
-                                    : 'text-[var(--ink-soft)]'
-                              }`}
-                            >
-                              {step.label}
-                            </span>
-                          </div>
-                        );
-                      })}
                     </div>
                   )}
 

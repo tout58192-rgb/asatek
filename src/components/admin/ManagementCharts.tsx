@@ -1,82 +1,160 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Area,
-  Bar,
-  BarChart,
+  AreaChart,
   CartesianGrid,
-  Cell,
-  ComposedChart,
   Legend,
-  Line,
-  Pie,
-  PieChart,
+  ReferenceDot,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts';
+import { useI18n } from '../../contexts/LanguageContext';
 import { formatPKR } from '../../lib/format';
-import type { AdminSalesSummary } from '../../types/db';
+import {
+  buildContinuousDailySeries,
+  findBestDay,
+  formatShortChartDate,
+  formatShortPKR,
+  getTodayLocalIso,
+} from '../../lib/orderHelpers';
+import type { AdminSalesSummary, SalesSummaryDailyPoint } from '../../types/db';
 
 const BRAND_RED = '#C8102E';
-const BRAND_RED_DARK = '#8B0A1E';
-const CHARCOAL = '#1A1A1A';
-const ACCENT_GREEN = '#16A34A';
-const ACCENT_AMBER = '#D97706';
 
-const STATUS_COLORS: Record<string, string> = {
-  new: '#C8102E',
-  contacted: '#D97706',
-  confirmed: '#2563EB',
-  dispatched: '#9333EA',
-  completed: '#16A34A',
-  skipped: '#7F1D1D',
-  closed: '#6B7280',
-};
+function usePrefersReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return false;
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  });
 
-const CHANNEL_COLORS: Record<string, string> = {
-  website: '#C8102E',
-  whatsapp: '#25D366',
-};
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const onChange = (e: MediaQueryListEvent) => setReduced(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
 
-function EmptyChart({ label }: { label: string }) {
+  return reduced;
+}
+
+interface SalesTooltipProps {
+  active?: boolean;
+  payload?: Array<{ payload: SalesSummaryDailyPoint }>;
+  lang: 'en' | 'ur';
+}
+
+function SalesTooltip({ active, payload, lang }: SalesTooltipProps) {
+  if (!active || !payload || payload.length === 0) return null;
+  const pt = payload[0]?.payload;
+  if (!pt) return null;
+
   return (
-    <div className="h-[260px] flex items-center justify-center rounded-lg border border-dashed border-[var(--line)] bg-[var(--bg-alt)]/50 px-4 text-center text-sm text-[var(--ink-soft)]">
-      {label}
+    <div
+      dir={lang === 'ur' ? 'rtl' : 'ltr'}
+      className="rounded-xl border border-[var(--line)] bg-white px-3.5 py-2.5 shadow-lg text-xs space-y-1"
+    >
+      <p className="font-semibold text-[var(--ink)]">
+        {formatShortChartDate(pt.date)}{' '}
+        <span className="text-[var(--ink-soft)] font-normal tabular-nums">
+          ({pt.date})
+        </span>
+      </p>
+      <p className="font-bold text-[var(--brand-red)] tabular-nums" dir="ltr">
+        {formatPKR(pt.revenue)}
+      </p>
+      <p className="text-[var(--ink-soft)] tabular-nums">
+        {pt.orders}{' '}
+        {lang === 'ur'
+          ? 'آرڈرز'
+          : pt.orders === 1
+            ? 'order'
+            : 'orders'}
+      </p>
     </div>
   );
 }
 
-function ChartCard({
-  title,
-  subtitle,
-  children,
-}: {
-  title: string;
-  subtitle?: string;
-  children: React.ReactNode;
-}) {
+interface BestDayDotShapeProps {
+  cx?: number;
+  cy?: number;
+  svgWidth: number;
+  labelText: string;
+  reducedMotion: boolean;
+}
+
+function BestDayDotShape({
+  cx,
+  cy,
+  svgWidth,
+  labelText,
+  reducedMotion,
+}: BestDayDotShapeProps) {
+  if (typeof cx !== 'number' || typeof cy !== 'number') return null;
+
+  const pillWidth = Math.max(96, Math.ceil(labelText.length * 6.8) + 20);
+  const pillHeight = 24;
+
+  // Keep floating label strictly inside measured chart SVG bounds
+  const maxRight = Math.max(pillWidth + 14, svgWidth - 18);
+  const pillX = Math.max(6, Math.min(cx - pillWidth / 2, maxRight - pillWidth));
+
+  const placeBelow = cy < 84;
+  const pillY = placeBelow ? cy + 16 : cy - pillHeight - 14;
+  const textX = pillX + pillWidth / 2;
+  const textY = pillY + pillHeight / 2 + 4;
+
   return (
-    <div className="rounded-xl border border-[var(--line)] bg-white p-5 space-y-3">
-      <div>
-        <h3 className="text-sm font-bold text-[var(--ink)]">{title}</h3>
-        {subtitle && (
-          <p className="text-xs text-[var(--ink-soft)] mt-0.5">{subtitle}</p>
-        )}
-      </div>
-      {children}
-    </div>
+    <g style={{ pointerEvents: 'none' }}>
+      {!reducedMotion && (
+        <circle cx={cx} cy={cy} r={8} fill={BRAND_RED} fillOpacity={0.25}>
+          <animate
+            attributeName="r"
+            values="6;15;6"
+            dur="2s"
+            repeatCount="indefinite"
+          />
+          <animate
+            attributeName="fill-opacity"
+            values="0.4;0;0.4"
+            dur="2s"
+            repeatCount="indefinite"
+          />
+        </circle>
+      )}
+      <circle
+        cx={cx}
+        cy={cy}
+        r={5.5}
+        fill={BRAND_RED}
+        stroke="#FFFFFF"
+        strokeWidth={2}
+      />
+      <rect
+        x={pillX}
+        y={pillY}
+        width={pillWidth}
+        height={pillHeight}
+        rx={8}
+        fill="#FFFFFF"
+        stroke="#FCA5A5"
+        strokeWidth={1}
+      />
+      <text
+        x={textX}
+        y={textY}
+        textAnchor="middle"
+        fill="#8B0A1E"
+        fontSize={11}
+        fontWeight={700}
+      >
+        {labelText}
+      </text>
+    </g>
   );
-}
-
-function formatCompactPKR(value: number): string {
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `${Math.round(value / 1_000)}k`;
-  return String(value);
-}
-
-function truncateLabel(text: string, maxLen = 22): string {
-  if (!text) return '';
-  return text.length > maxLen ? `${text.slice(0, maxLen - 1)}…` : text;
 }
 
 export default function ManagementCharts({
@@ -84,368 +162,240 @@ export default function ManagementCharts({
 }: {
   summary: AdminSalesSummary;
 }) {
-  const dailyData = summary.daily ?? [];
-  const monthlyData = summary.monthly ?? [];
-  const statusData = (summary.by_status ?? []).filter((d) => d.orders > 0);
-  const topProducts = summary.top_products ?? [];
-  const trendingProducts = summary.trending_products ?? [];
-  const channelData = (summary.by_channel ?? []).filter((d) => d.orders > 0);
-  const cityData = summary.by_city ?? [];
+  const { lang } = useI18n();
+  const reducedMotion = usePrefersReducedMotion();
+  const todayIso = useMemo(() => getTodayLocalIso(), []);
+  const chartBoxRef = useRef<HTMLDivElement | null>(null);
+  const [svgWidth, setSvgWidth] = useState<number>(() => {
+    if (typeof window === 'undefined') return 640;
+    return Math.max(260, Math.min(960, window.innerWidth - 72));
+  });
+
+  const rawDaily = summary.daily ?? [];
+  const hasAnySales = useMemo(
+    () => rawDaily.some((d) => Number(d.revenue) > 0 || Number(d.orders) > 0),
+    [rawDaily],
+  );
+
+  const series = useMemo(
+    () =>
+      buildContinuousDailySeries(
+        rawDaily,
+        summary.range.from,
+        summary.range.to,
+        todayIso,
+      ),
+    [rawDaily, summary.range.from, summary.range.to, todayIso],
+  );
+
+  useEffect(() => {
+    const el = chartBoxRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    if (el.clientWidth > 0) {
+      setSvgWidth(el.clientWidth);
+    }
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect?.width;
+      if (w && w > 0) setSvgWidth(w);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [hasAnySales, series.length]);
+
+  const bestDay = useMemo(() => findBestDay(series), [series]);
+
+  const hasTodayInSeries = useMemo(
+    () => series.some((pt) => pt.date === todayIso),
+    [series, todayIso],
+  );
+
+  const rangeKey = `${summary.range.from}:${summary.range.to}`;
+  const isUr = lang === 'ur';
+  const chartTitle = isUr ? 'فروخت بلحاظ تاریخ' : 'Sales by date';
+  const chartSubtitle = isUr
+    ? 'منتخب مدت میں کنفرم، ڈسپیچ اور مکمل آرڈرز کی روزانہ فروخت'
+    : 'Daily confirmed, dispatched & completed sales across selected dates';
+  const legendLabel = isUr ? 'فروخت (PKR)' : 'Sales (PKR)';
+  const todayLabel = isUr ? 'آج' : 'Today';
+  const emptyLabel = isUr
+    ? 'اس مدت میں ابھی تک کوئی فروخت نہیں ہوئی'
+    : 'No sales in this range yet';
+
+  const bestDayFloatingText = bestDay
+    ? `${isUr ? 'بہترین دن:' : 'Best day:'} ${formatShortChartDate(bestDay.date)} - ${formatPKR(bestDay.revenue)}`
+    : '';
+  const svgBestDayText =
+    bestDay && svgWidth < 480
+      ? `${formatShortChartDate(bestDay.date)} · ${formatShortPKR(bestDay.revenue)}`
+      : bestDayFloatingText;
 
   return (
-    <div className="space-y-6">
-      {/* Row 1: Daily Revenue + Orders & Monthly Revenue */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ChartCard
-          title="Daily Revenue & Orders"
-          subtitle="Revenue (PKR) vs daily order volume in selected range"
-        >
-          {dailyData.length === 0 ? (
-            <EmptyChart label="No daily order activity in this date range." />
-          ) : (
-            <div className="h-[260px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart
-                  data={dailyData}
-                  margin={{ top: 8, right: 12, left: 4, bottom: 4 }}
-                >
-                  <defs>
-                    <linearGradient id="revFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={BRAND_RED} stopOpacity={0.28} />
-                      <stop offset="95%" stopColor={BRAND_RED} stopOpacity={0.02} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#4B5563' }} />
-                  <YAxis
-                    yAxisId="rev"
-                    tickFormatter={formatCompactPKR}
-                    tick={{ fontSize: 11, fill: '#4B5563' }}
-                  />
-                  <YAxis
-                    yAxisId="ord"
-                    orientation="right"
-                    allowDecimals={false}
-                    tick={{ fontSize: 11, fill: '#4B5563' }}
-                  />
-                  <Tooltip
-                    formatter={(val, name) => {
-                      const num = Number(val ?? 0);
-                      return name === 'Revenue'
-                        ? [formatPKR(num), 'Revenue']
-                        : [num, 'Orders'];
-                    }}
-                  />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Area
-                    yAxisId="rev"
-                    type="monotone"
-                    dataKey="revenue"
-                    name="Revenue"
-                    stroke={BRAND_RED}
-                    strokeWidth={2}
-                    fill="url(#revFill)"
-                    isAnimationActive={false}
-                  />
-                  <Line
-                    yAxisId="ord"
-                    type="monotone"
-                    dataKey="orders"
-                    name="Orders"
-                    stroke={CHARCOAL}
-                    strokeWidth={2}
-                    dot={{ r: 3, fill: CHARCOAL }}
-                    isAnimationActive={false}
-                  />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </ChartCard>
+    <div
+      data-testid="sales-by-date-card"
+      className="rounded-2xl border border-[var(--line)] bg-white p-5 sm:p-6 shadow-sm space-y-4"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-base sm:text-lg font-bold text-[var(--ink)]">
+            {chartTitle}
+          </h2>
+          <p className="text-xs text-[var(--ink-soft)] mt-0.5">
+            {chartSubtitle}
+          </p>
+        </div>
 
-        <ChartCard
-          title="Monthly Revenue (Last 12 Months)"
-          subtitle="Confirmed, dispatched & completed wholesale order revenue"
-        >
-          {monthlyData.length === 0 ? (
-            <EmptyChart label="No monthly revenue data yet." />
-          ) : (
-            <div className="h-[260px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={monthlyData}
-                  margin={{ top: 8, right: 12, left: 4, bottom: 4 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#4B5563' }} />
-                  <YAxis
-                    tickFormatter={formatCompactPKR}
-                    tick={{ fontSize: 11, fill: '#4B5563' }}
-                  />
-                  <Tooltip
-                    formatter={(val, name) => {
-                      const num = Number(val ?? 0);
-                      return name === 'Revenue'
-                        ? [formatPKR(num), 'Revenue']
-                        : [num, 'Orders'];
-                    }}
-                  />
-                  <Bar
-                    dataKey="revenue"
-                    name="Revenue"
-                    fill={BRAND_RED}
-                    radius={[4, 4, 0, 0]}
-                    isAnimationActive={false}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </ChartCard>
-      </div>
-
-      {/* Row 2: Orders by Status Donut & Orders by Channel Pie */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ChartCard
-          title="Orders by Status"
-          subtitle="Distribution across workflow stages"
-        >
-          {statusData.length === 0 ? (
-            <EmptyChart label="No orders in selected range." />
-          ) : (
-            <div className="h-[260px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={statusData}
-                    dataKey="orders"
-                    nameKey="status"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={55}
-                    outerRadius={90}
-                    paddingAngle={2}
-                    isAnimationActive={false}
-                  >
-                    {statusData.map((entry) => (
-                      <Cell
-                        key={entry.status}
-                        fill={STATUS_COLORS[entry.status] ?? BRAND_RED}
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(val) => [Number(val ?? 0), 'Orders']} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </ChartCard>
-
-        <ChartCard
-          title="Orders by Channel (Website vs WhatsApp)"
-          subtitle="Order count and revenue share by submission channel"
-        >
-          {channelData.length === 0 ? (
-            <EmptyChart label="No channel data in selected range." />
-          ) : (
-            <div className="h-[260px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={channelData}
-                    dataKey="orders"
-                    nameKey="channel"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={90}
-                    paddingAngle={2}
-                    isAnimationActive={false}
-                  >
-                    {channelData.map((entry) => (
-                      <Cell
-                        key={entry.channel}
-                        fill={CHANNEL_COLORS[entry.channel] ?? ACCENT_AMBER}
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(val, _name, props) => {
-                      const rev = Number(
-                        (props?.payload as { revenue?: number })?.revenue ?? 0,
-                      );
-                      return [`${Number(val ?? 0)} orders (${formatPKR(rev)})`, 'Channel'];
-                    }}
-                  />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </ChartCard>
-      </div>
-
-      {/* Row 3: Top Products by Revenue & Trending Products by Orders */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ChartCard
-          title="Top Products by Revenue"
-          subtitle="Highest-earning products in confirmed/dispatched/completed orders"
-        >
-          {topProducts.length === 0 ? (
-            <EmptyChart label="No confirmed product revenue in this range." />
-          ) : (
-            <div className="h-[280px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={topProducts.map((p) => ({
-                    ...p,
-                    shortName: truncateLabel(p.name, 20),
-                  }))}
-                  layout="vertical"
-                  margin={{ top: 4, right: 16, left: 10, bottom: 4 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                  <XAxis
-                    type="number"
-                    tickFormatter={formatCompactPKR}
-                    tick={{ fontSize: 11, fill: '#4B5563' }}
-                  />
-                  <YAxis
-                    type="category"
-                    dataKey="shortName"
-                    width={120}
-                    tick={{ fontSize: 11, fill: '#1A1A1A' }}
-                  />
-                  <Tooltip
-                    formatter={(val) => [formatPKR(Number(val ?? 0)), 'Revenue']}
-                    labelFormatter={(_lbl, payload) =>
-                      String(payload?.[0]?.payload?.name ?? '')
-                    }
-                  />
-                  <Bar
-                    dataKey="revenue"
-                    name="Revenue"
-                    fill={BRAND_RED}
-                    radius={[0, 4, 4, 0]}
-                    isAnimationActive={false}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </ChartCard>
-
-        <ChartCard
-          title="Trending Products by Order Count"
-          subtitle="Most frequently requested models across all orders"
-        >
-          {trendingProducts.length === 0 ? (
-            <EmptyChart label="No product requests in this date range." />
-          ) : (
-            <div className="h-[280px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={trendingProducts.map((p) => ({
-                    ...p,
-                    shortName: truncateLabel(p.name, 20),
-                  }))}
-                  layout="vertical"
-                  margin={{ top: 4, right: 16, left: 10, bottom: 4 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                  <XAxis
-                    type="number"
-                    allowDecimals={false}
-                    tick={{ fontSize: 11, fill: '#4B5563' }}
-                  />
-                  <YAxis
-                    type="category"
-                    dataKey="shortName"
-                    width={120}
-                    tick={{ fontSize: 11, fill: '#1A1A1A' }}
-                  />
-                  <Tooltip
-                    formatter={(val, _name, props) => {
-                      const qty = Number(
-                        (props?.payload as { qty?: number })?.qty ?? 0,
-                      );
-                      return [`${Number(val ?? 0)} orders (${qty} units)`, 'Orders'];
-                    }}
-                    labelFormatter={(_lbl, payload) =>
-                      String(payload?.[0]?.payload?.name ?? '')
-                    }
-                  />
-                  <Bar
-                    dataKey="orders"
-                    name="Orders"
-                    fill={BRAND_RED_DARK}
-                    radius={[0, 4, 4, 0]}
-                    isAnimationActive={false}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </ChartCard>
-      </div>
-
-      {/* Row 4: Top Cities */}
-      <ChartCard
-        title="Top Cities by Orders & Revenue"
-        subtitle="Buyer demand by delivery city"
-      >
-        {cityData.length === 0 ? (
-          <EmptyChart label="No city data available for this range." />
-        ) : (
-          <div className="h-[260px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={cityData}
-                margin={{ top: 8, right: 16, left: 4, bottom: 4 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                <XAxis dataKey="city" tick={{ fontSize: 11, fill: '#4B5563' }} />
-                <YAxis
-                  yAxisId="ord"
-                  allowDecimals={false}
-                  tick={{ fontSize: 11, fill: '#4B5563' }}
-                />
-                <YAxis
-                  yAxisId="rev"
-                  orientation="right"
-                  tickFormatter={formatCompactPKR}
-                  tick={{ fontSize: 11, fill: '#4B5563' }}
-                />
-                <Tooltip
-                  formatter={(val, name) => {
-                    const num = Number(val ?? 0);
-                    return name === 'Revenue'
-                      ? [formatPKR(num), 'Revenue']
-                      : [num, 'Orders'];
-                  }}
-                />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar
-                  yAxisId="ord"
-                  dataKey="orders"
-                  name="Orders"
-                  fill={BRAND_RED}
-                  radius={[4, 4, 0, 0]}
-                  isAnimationActive={false}
-                />
-                <Bar
-                  yAxisId="rev"
-                  dataKey="revenue"
-                  name="Revenue"
-                  fill={ACCENT_GREEN}
-                  radius={[4, 4, 0, 0]}
-                  isAnimationActive={false}
-                />
-              </BarChart>
-            </ResponsiveContainer>
+        {bestDay && hasAnySales && (
+          <div
+            data-testid="best-day-pill"
+            className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-[var(--brand-red-light)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-red-dark)] tabular-nums"
+          >
+            <span className="h-2 w-2 rounded-full bg-[var(--brand-red)]" />
+            <span dir="ltr">{bestDayFloatingText}</span>
           </div>
         )}
-      </ChartCard>
+      </div>
+
+      {!hasAnySales || series.length === 0 ? (
+        <div
+          data-testid="sales-chart-empty"
+          className="h-[280px] flex items-center justify-center rounded-xl border border-dashed border-[var(--line)] bg-[var(--bg-alt)]/60 px-4 text-center text-sm font-medium text-[var(--ink-soft)]"
+        >
+          {emptyLabel}
+        </div>
+      ) : (
+        <div
+          ref={chartBoxRef}
+          dir="ltr"
+          className="h-[300px] sm:h-[340px] w-full"
+          style={
+            reducedMotion
+              ? undefined
+              : {
+                  animation: 'asatek-area-fade 650ms ease-out',
+                }
+          }
+        >
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart
+              key={rangeKey}
+              data={series}
+              margin={{ top: 44, right: 22, left: 4, bottom: 8 }}
+            >
+              <defs>
+                <linearGradient
+                  id="asatekSalesGradient"
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="1"
+                >
+                  <stop offset="0%" stopColor={BRAND_RED} stopOpacity={0.35} />
+                  <stop offset="100%" stopColor={BRAND_RED} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+
+              <CartesianGrid
+                vertical={false}
+                stroke="#E5E7EB"
+                strokeDasharray="3 3"
+              />
+
+              <XAxis
+                dataKey="date"
+                tickFormatter={formatShortChartDate}
+                tick={{ fontSize: 11, fill: '#4B5563' }}
+                tickLine={false}
+                axisLine={{ stroke: '#E5E7EB' }}
+                minTickGap={26}
+              />
+
+              <YAxis
+                tickFormatter={formatShortPKR}
+                tick={{ fontSize: 11, fill: '#4B5563' }}
+                tickLine={false}
+                axisLine={false}
+                width={48}
+              />
+
+              <Tooltip
+                cursor={{
+                  stroke: BRAND_RED,
+                  strokeWidth: 1,
+                  strokeDasharray: '4 4',
+                }}
+                content={<SalesTooltip lang={lang} />}
+              />
+
+              <Legend
+                verticalAlign="bottom"
+                height={28}
+                iconType="circle"
+                wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
+              />
+
+              {hasTodayInSeries && (
+                <ReferenceLine
+                  x={todayIso}
+                  stroke="#6B7280"
+                  strokeDasharray="4 4"
+                  strokeWidth={1.5}
+                  label={{
+                    value: todayLabel,
+                    position: 'top',
+                    dy: -6,
+                    dx: -12,
+                    fill: '#4B5563',
+                    fontSize: 11,
+                    fontWeight: 600,
+                  }}
+                />
+              )}
+
+              <Area
+                type="monotone"
+                dataKey="revenue"
+                name={legendLabel}
+                stroke={BRAND_RED}
+                strokeWidth={2.5}
+                fill="url(#asatekSalesGradient)"
+                fillOpacity={1}
+                isAnimationActive={!reducedMotion}
+                animationDuration={1400}
+                animationEasing="ease-out"
+                dot={false}
+                activeDot={{
+                  r: 6,
+                  fill: BRAND_RED,
+                  stroke: '#FFFFFF',
+                  strokeWidth: 2,
+                  style: {
+                    filter: 'drop-shadow(0 0 6px rgba(200, 16, 46, 0.55))',
+                  },
+                }}
+              />
+
+              {bestDay && bestDay.revenue > 0 && (
+                <ReferenceDot
+                  key={`best-${bestDay.date}-${Math.round(svgWidth / 30)}`}
+                  x={bestDay.date}
+                  y={bestDay.revenue}
+                  r={6}
+                  ifOverflow="extendDomain"
+                  shape={(props: { cx?: number; cy?: number }) => (
+                    <BestDayDotShape
+                      cx={props.cx}
+                      cy={props.cy}
+                      svgWidth={svgWidth}
+                      labelText={svgBestDayText}
+                      reducedMotion={reducedMotion}
+                    />
+                  )}
+                />
+              )}
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </div>
   );
 }

@@ -8,10 +8,13 @@ import {
   CheckCircle2,
   Minus,
   Plus,
+  RefreshCw,
   Trash2,
 } from 'lucide-react';
 import { Layout } from '../components/layout/Layout';
+import { CustomerOrderStatusCard } from '../components/order/CustomerOrderStatusCard';
 import { ProductImageSlot } from '../components/product/ProductImageSlot';
+import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Input, Textarea } from '../components/ui/Input';
@@ -19,6 +22,7 @@ import { WhatsAppIcon } from '../components/ui/WhatsAppIcon';
 import { useI18n } from '../contexts/LanguageContext';
 import { useQuote } from '../contexts/QuoteContext';
 import { useToast } from '../contexts/ToastContext';
+import { useTrackedOrder } from '../hooks/useInquiries';
 import { useSettings } from '../hooks/useSettings';
 import { formatPKR, getErrorMessage } from '../lib/format';
 import { pickSetting } from '../lib/i18n';
@@ -50,6 +54,23 @@ export default function Quote() {
   );
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [success, setSuccess] = useState<SuccessState | null>(null);
+
+  const canPollSuccessOrder = Boolean(
+    success &&
+      !success.saveFailedNotice &&
+      success.reference !== 'ASK-RECEIVED' &&
+      success.reference !== 'WHATSAPP-DIRECT',
+  );
+
+  const {
+    data: liveSuccessOrder,
+    isFetching: liveOrderFetching,
+    refetch: refetchLiveOrder,
+  } = useTrackedOrder(
+    success?.reference ?? '',
+    success?.phone ?? '',
+    canPollSuccessOrder,
+  );
 
   const productIds = items.map((i) => i.product_id);
   const { data: liveProducts, isLoading: productsLoading } = useQuery({
@@ -213,6 +234,14 @@ export default function Quote() {
     };
 
   if (success) {
+    const liveStatus = liveSuccessOrder?.status ?? 'new';
+    const factorySupportHref = whatsappNumber
+      ? buildWhatsAppLink(
+          whatsappNumber,
+          `Assalam o Alaikum ASATEK, I have a question regarding order ${success.reference}.`,
+        )
+      : null;
+
     return (
       <Layout title={t('quote.successTitle')}>
         <div className="max-w-[720px] mx-auto px-4 md:px-6 py-14">
@@ -234,6 +263,48 @@ export default function Quote() {
                 {success.reference}
               </p>
             </div>
+
+            {canPollSuccessOrder && (
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <Badge
+                  tone={
+                    liveStatus === 'cancelled'
+                      ? 'red'
+                      : liveStatus === 'skipped' ||
+                          liveStatus === 'dispatched' ||
+                          liveStatus === 'contacted'
+                        ? 'amber'
+                        : liveStatus === 'confirmed' ||
+                            liveStatus === 'completed'
+                          ? 'green'
+                          : 'neutral'
+                  }
+                >
+                  {t(`track.statuses.${liveStatus}`)}
+                </Badge>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={liveOrderFetching}
+                  onClick={() => void refetchLiveOrder()}
+                >
+                  <RefreshCw
+                    className={`w-3.5 h-3.5 ${liveOrderFetching ? 'animate-spin' : ''}`}
+                  />
+                  <span>{t('track.refresh')}</span>
+                </Button>
+              </div>
+            )}
+
+            {canPollSuccessOrder && (
+              <CustomerOrderStatusCard
+                status={liveStatus}
+                skipReason={liveSuccessOrder?.skip_reason}
+                factorySupportHref={factorySupportHref}
+              />
+            )}
+
             <p className="text-sm sm:text-base text-[var(--ink-soft)] max-w-md mx-auto">
               {success.saveFailedNotice
                 ? `${t('quote.whatsappSaveWarning')} (${success.saveFailedNotice})`

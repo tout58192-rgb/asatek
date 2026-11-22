@@ -29,6 +29,9 @@ import {
   findBestDay,
   findBestMonth,
   buildOrdersCsv,
+  formatShortPKR,
+  formatShortChartDate,
+  buildContinuousDailySeries,
 } from '../orderHelpers';
 import { getMockTrackedOrder, getMockAdminSalesSummary } from '../../services/mockData';
 import { buyerOrderSchema, whatsappSettingSchema, validateQuantity } from '../validation';
@@ -216,9 +219,11 @@ test('orderHelpers: timeline step, revenue status, total calculation, and buyer 
   assert.equal(getOrderTimelineStep('dispatched'), 2);
   assert.equal(getOrderTimelineStep('completed'), 3);
   assert.equal(getOrderTimelineStep('skipped'), -1);
+  assert.equal(getOrderTimelineStep('cancelled'), -1);
 
   assert.equal(isRevenueStatus('new'), false);
   assert.equal(isRevenueStatus('skipped'), false);
+  assert.equal(isRevenueStatus('cancelled'), false);
   assert.equal(isRevenueStatus('confirmed'), true);
   assert.equal(isRevenueStatus('dispatched'), true);
   assert.equal(isRevenueStatus('completed'), true);
@@ -335,6 +340,53 @@ test('mockData: getMockTrackedOrder and getMockAdminSalesSummary work determinis
   const summary = getMockAdminSalesSummary('2020-01-01', '2030-12-31');
   assert.ok(summary.totals.orders >= 2);
   assert.ok(summary.totals.revenue >= 139000);
+  assert.ok((summary.totals.cancelled_orders ?? 0) >= 1);
   assert.ok(summary.by_status.length > 0);
   assert.ok(summary.by_channel.length > 0);
+});
+
+test('orderHelpers: cancelled WhatsApp message and Sales by date chart helpers', () => {
+  const enCancelled = buildBuyerStatusWhatsAppMessage({
+    reference: 'ASK-103',
+    status: 'cancelled',
+    skipReason: 'Out of stock',
+    lang: 'en',
+  });
+  assert.ok(enCancelled.includes('cancelled'));
+  assert.ok(enCancelled.includes('Out of stock'));
+
+  const urCancelled = buildBuyerStatusWhatsAppMessage({
+    reference: 'ASK-103',
+    status: 'cancelled',
+    skipReason: 'اسٹاک ختم',
+    lang: 'ur',
+  });
+  assert.ok(urCancelled.includes('منسوخ'));
+  assert.ok(urCancelled.includes('اسٹاک ختم'));
+
+  assert.equal(formatShortPKR(0), '0');
+  assert.equal(formatShortPKR(850), '850');
+  assert.equal(formatShortPKR(1500), '1.5K');
+  assert.equal(formatShortPKR(85000), '85K');
+  assert.equal(formatShortPKR(1500000), '1.5M');
+  assert.equal(formatShortPKR(2000000), '2M');
+
+  assert.equal(formatShortChartDate('2026-11-14'), '14 Nov');
+  assert.equal(formatShortChartDate('2026-01-05'), '5 Jan');
+
+  const continuous = buildContinuousDailySeries(
+    [
+      { date: '2026-11-12', orders: 1, revenue: 12000 },
+      { date: '2026-11-14', orders: 2, revenue: 50000 },
+      { date: '2026-11-14', orders: 1, revenue: 35000 },
+    ],
+    '2026-11-12',
+    '2026-11-15',
+    '2026-11-15',
+  );
+  assert.equal(continuous.length, 4);
+  assert.deepEqual(continuous[0], { date: '2026-11-12', orders: 1, revenue: 12000 });
+  assert.deepEqual(continuous[1], { date: '2026-11-13', orders: 0, revenue: 0 });
+  assert.deepEqual(continuous[2], { date: '2026-11-14', orders: 3, revenue: 85000 });
+  assert.deepEqual(continuous[3], { date: '2026-11-15', orders: 0, revenue: 0 });
 });

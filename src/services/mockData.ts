@@ -680,6 +680,35 @@ export const mockInquiries: InquiryWithItems[] = [
     skip_reason: null,
     items: [],
   },
+  {
+    id: 'inq-1004',
+    reference: 'ASK-20261118-0004',
+    type: 'quote',
+    channel: 'website',
+    name: 'Zeeshan Solar Works',
+    phone: '03015554433',
+    city: 'Faisalabad',
+    business_name: 'Zeeshan Traders',
+    message: 'Check availability first.',
+    status: 'cancelled',
+    admin_note: 'Customer postponed project.',
+    created_at: twoDaysAgoIso,
+    status_updated_at: twoDaysAgoIso,
+    confirmed_at: null,
+    total_amount: 24000,
+    skip_reason: 'Buyer postponed project to next month',
+    items: [
+      {
+        id: 'ii-4',
+        inquiry_id: 'inq-1004',
+        product_id: 'prod-sc5-v-1260',
+        product_name: 'ASATEK SC5 V-1260 PWM Solar Charge Controller (12V 60A)',
+        sku: 'SC5 V-1260',
+        quantity: 10,
+        unit_price: 2400,
+      },
+    ],
+  },
 ];
 
 const MOCK_STORE_KEY = 'asatek_preview_mock_store_v1';
@@ -890,6 +919,7 @@ export function getMockAdminSalesSummary(
       orders: ordersInRange.length,
       new_orders: ordersInRange.filter((i) => i.status === 'new').length,
       skipped_orders: ordersInRange.filter((i) => i.status === 'skipped').length,
+      cancelled_orders: ordersInRange.filter((i) => i.status === 'cancelled').length,
       confirmed_orders: revenueOrders.length,
       revenue: totalRevenue,
       avg_order_value:

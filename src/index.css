@@ -84,6 +84,15 @@ html[lang="ur"] .font-heading {
   animation: asatek-shimmer 1.4s ease-in-out infinite;
 }
 
+@keyframes asatek-area-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
