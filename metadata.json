@@ -1,0 +1,6 @@
+{
+  "name": "ASATEK Power Link — Wholesale Power Electronics",
+  "description": "Factory-direct wholesale catalogue and B2B order portal for ASATEK power electronics, solar charge controllers, UPS, inverters, battery chargers, and industrial components in Sadiqabad, Pakistan.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
