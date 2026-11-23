@@ -64,7 +64,7 @@ export function Layout({ title, description, noindex = false, children }: Layout
         </div>
       )}
       <Header />
-      <main className="flex-1">{children}</main>
+      <main className="flex-1 asatek-page-enter">{children}</main>
       <Footer />
       <WhatsAppFloat />
     </div>

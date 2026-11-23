@@ -21,10 +21,10 @@ export function ProductCard({ product }: { product: ProductWithDetails }) {
   const lowestPrice = getLowestUnitPrice(product.price_tiers);
 
   return (
-    <article className="group flex flex-col rounded-xl border border-[var(--line)] bg-white overflow-hidden transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md">
+    <article className="group flex flex-col rounded-2xl border border-[var(--line)] bg-white overflow-hidden shadow-[var(--shadow-card)] transition-all duration-200 ease-out hover:-translate-y-1 hover:shadow-[var(--shadow-card-hover)] hover:border-gray-300/90">
       <Link
         to={`/products/${product.slug}`}
-        className="block aspect-square w-full overflow-hidden border-b border-[var(--line)] bg-[var(--bg-alt)]"
+        className="block aspect-square w-full overflow-hidden border-b border-[var(--line)] bg-[#F5F5F7]"
       >
         <ProductImageSlot
           imageUrl={primaryImage}
@@ -34,14 +34,15 @@ export function ProductCard({ product }: { product: ProductWithDetails }) {
           useThumb
           width={480}
           height={480}
+          className="transition-transform duration-300 ease-out group-hover:scale-[1.04]"
         />
       </Link>
 
-      <div className="flex flex-1 flex-col p-4">
+      <div className="flex flex-1 flex-col p-4 sm:p-5">
         {/* Clean metadata line (zero-pill) */}
-        <div className="flex items-center justify-between gap-2 text-xs text-[var(--ink-soft)] mb-1.5">
-          <span className="truncate">{categoryName}</span>
-          <span className="font-mono-num shrink-0">{product.sku}</span>
+        <div className="flex items-center justify-between gap-2 text-xs text-[var(--ink-soft)] mb-2">
+          <span className="truncate font-medium">{categoryName}</span>
+          <span className="font-mono-num shrink-0 opacity-85">{product.sku}</span>
         </div>
 
         <Link
@@ -51,11 +52,12 @@ export function ProductCard({ product }: { product: ProductWithDetails }) {
           {name}
         </Link>
 
-        <div className="mt-auto pt-3 border-t border-[var(--line)] space-y-2.5">
-          <div className="flex items-baseline justify-between gap-2">
+        <div className="mt-auto pt-3 space-y-3">
+          {/* Neat price slab chip */}
+          <div className="rounded-xl border border-red-100 bg-[var(--brand-red-light)]/55 px-3 py-2 flex flex-wrap items-center justify-between gap-2">
             <div>
               {lowestPrice !== null ? (
-                <p className="text-base font-bold text-[var(--brand-red)] tabular-nums">
+                <p className="text-base font-bold text-[var(--brand-red)] tabular-nums leading-tight">
                   <span className="text-xs font-normal text-[var(--ink-soft)] me-1">
                     {t('common.from')}
                   </span>
@@ -67,7 +69,7 @@ export function ProductCard({ product }: { product: ProductWithDetails }) {
               ) : (
                 <p className="text-sm font-medium text-[var(--ink-soft)]">—</p>
               )}
-              <p className="text-xs text-[var(--ink-soft)] tabular-nums mt-0.5">
+              <p className="text-[11px] text-[var(--ink-soft)] tabular-nums mt-0.5">
                 {t('common.moq')}: {product.moq} {t('common.units')}
               </p>
             </div>

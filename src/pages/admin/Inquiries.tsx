@@ -213,18 +213,18 @@ export default function AdminInquiries() {
           </div>
         )}
 
-        <div className="rounded-xl border border-[var(--line)] bg-white overflow-hidden">
+        <div className="rounded-2xl border border-[var(--line)] bg-white shadow-[var(--shadow-card)] overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-start">
               <thead>
                 <tr className="border-b border-[var(--line)] bg-[var(--bg-alt)] text-xs font-semibold text-[var(--ink-soft)]">
-                  <th className="px-2.5 py-3 text-start">Reference</th>
-                  <th className="px-2 py-3 text-start">Date / Time</th>
-                  <th className="px-2 py-3 text-start">Buyer</th>
-                  <th className="px-2 py-3 text-start">City</th>
-                  <th className="px-2 py-3 text-start">Items &amp; Total</th>
-                  <th className="px-2 py-3 text-start">Status</th>
-                  <th className="px-2.5 py-3 text-end">Action</th>
+                  <th className="px-3 py-3 text-start">Reference</th>
+                  <th className="px-2.5 py-3 text-start">Date / Time</th>
+                  <th className="px-2.5 py-3 text-start">Buyer</th>
+                  <th className="px-2.5 py-3 text-start">City</th>
+                  <th className="px-2.5 py-3 text-start">Items &amp; Total</th>
+                  <th className="px-2.5 py-3 text-start">Status</th>
+                  <th className="px-3 py-3 text-end">Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -256,8 +256,8 @@ export default function AdminInquiries() {
                     return (
                       <tr
                         key={inq.id}
-                        className={`border-b last:border-b-0 border-[var(--line)] hover:bg-[var(--bg-alt)]/50 ${
-                          inq.status === 'new' ? 'bg-red-50/50' : ''
+                        className={`border-b last:border-b-0 border-[var(--line)] transition-colors duration-150 hover:bg-[var(--bg-alt)]/60 ${
+                          inq.status === 'new' ? 'asatek-new-row-highlight' : ''
                         }`}
                       >
                         <td className="px-2.5 py-3 font-mono-num text-xs font-semibold">
@@ -329,7 +329,7 @@ export default function AdminInquiries() {
                           </div>
                         </td>
                         <td className="px-2.5 py-3">
-                          <div className="space-y-2">
+                          <div className="flex flex-col items-start gap-2">
                             <InquiryStatusBadge status={inq.status} />
                             {(inq.status === 'skipped' || inq.status === 'cancelled') &&
                               inq.skip_reason && (

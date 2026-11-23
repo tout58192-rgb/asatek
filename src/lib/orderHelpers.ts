@@ -323,3 +323,21 @@ export function buildContinuousDailySeries(
   }
   return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
+
+export type MenuNavKey = 'ArrowDown' | 'ArrowUp' | 'Home' | 'End';
+
+export function getNextMenuIndex(
+  currentIndex: number,
+  key: MenuNavKey,
+  itemCount: number,
+): number {
+  if (itemCount <= 0) return -1;
+  if (key === 'Home') return 0;
+  if (key === 'End') return itemCount - 1;
+  if (currentIndex < 0 || currentIndex >= itemCount) {
+    return key === 'ArrowDown' ? 0 : itemCount - 1;
+  }
+  return key === 'ArrowDown'
+    ? (currentIndex + 1) % itemCount
+    : (currentIndex - 1 + itemCount) % itemCount;
+}

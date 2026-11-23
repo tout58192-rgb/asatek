@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, lazy, Suspense, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Ban,
@@ -28,52 +28,11 @@ import {
   getPresetDateRange,
   type DateRangePreset,
 } from '../../lib/orderHelpers';
+import { useCountUp } from '../../lib/useCountUp';
 
 const ManagementCharts = lazy(
   () => import('../../components/admin/ManagementCharts'),
 );
-
-function useCountUp(target: number, duration = 650): number {
-  const [display, setDisplay] = useState(target);
-  const currentRef = useRef(target);
-
-  useEffect(() => {
-    const prefersReduced =
-      typeof window !== 'undefined' &&
-      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-
-    if (prefersReduced || typeof window === 'undefined' || !window.requestAnimationFrame) {
-      currentRef.current = target;
-      setDisplay(target);
-      return;
-    }
-
-    const fromVal = currentRef.current;
-    if (fromVal === target) {
-      setDisplay(target);
-      return;
-    }
-
-    let rafId = 0;
-    const startTime = performance.now();
-
-    const step = (now: number) => {
-      const progress = Math.min(1, (now - startTime) / duration);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      const nextVal = Math.round(fromVal + (target - fromVal) * eased);
-      currentRef.current = nextVal;
-      setDisplay(nextVal);
-      if (progress < 1) {
-        rafId = window.requestAnimationFrame(step);
-      }
-    };
-
-    rafId = window.requestAnimationFrame(step);
-    return () => window.cancelAnimationFrame(rafId);
-  }, [target, duration]);
-
-  return display;
-}
 
 export default function AdminManagement() {
   const { lang } = useI18n();
@@ -164,7 +123,7 @@ export default function AdminManagement() {
     <AdminLayout title={isUr ? 'مینجمنٹ اور رپورٹس' : 'Management & Reports'}>
       <div className="space-y-6">
         {/* Date Range Toolbar */}
-        <div className="rounded-xl border border-[var(--line)] bg-white p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="rounded-2xl border border-[var(--line)] bg-white shadow-[var(--shadow-card)] p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-2">
             {presets.map((p) => (
               <button
@@ -256,7 +215,7 @@ export default function AdminManagement() {
           data-testid="management-kpi-grid"
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
         >
-          <div className="rounded-xl border border-[var(--line)] bg-white p-5 space-y-1.5 sm:col-span-2 lg:col-span-2">
+          <div className="rounded-2xl border border-[var(--line)] bg-white shadow-[var(--shadow-card)] p-5 space-y-1.5 sm:col-span-2 lg:col-span-2">
             <div className="flex items-center justify-between text-xs font-medium text-[var(--ink-soft)]">
               <span>{isUr ? 'کل آمدنی' : 'Total revenue'}</span>
               <TrendingUp className="w-4 h-4 text-[var(--brand-red)]" />
@@ -281,7 +240,7 @@ export default function AdminManagement() {
             )}
           </div>
 
-          <div className="rounded-xl border border-[var(--line)] bg-white p-5 space-y-1.5">
+          <div className="rounded-2xl border border-[var(--line)] bg-white shadow-[var(--shadow-card)] p-5 space-y-1.5">
             <div className="flex items-center justify-between text-xs font-medium text-[var(--ink-soft)]">
               <span>{isUr ? 'آرڈرز' : 'Orders'}</span>
               <ShoppingBag className="w-4 h-4 text-[var(--ink-soft)]" />
@@ -299,7 +258,7 @@ export default function AdminManagement() {
             )}
           </div>
 
-          <div className="rounded-xl border border-[var(--line)] bg-white p-5 space-y-1.5">
+          <div className="rounded-2xl border border-[var(--line)] bg-white shadow-[var(--shadow-card)] p-5 space-y-1.5">
             <div className="flex items-center justify-between text-xs font-medium text-[var(--ink-soft)]">
               <span>{isUr ? 'کنفرم' : 'Confirmed'}</span>
               <CheckCircle2 className="w-4 h-4 text-[var(--accent-green)]" />
@@ -317,7 +276,7 @@ export default function AdminManagement() {
             )}
           </div>
 
-          <div className="rounded-xl border border-[var(--line)] bg-white p-5 space-y-1.5">
+          <div className="rounded-2xl border border-[var(--line)] bg-white shadow-[var(--shadow-card)] p-5 space-y-1.5">
             <div className="flex items-center justify-between text-xs font-medium text-[var(--ink-soft)]">
               <span>{isUr ? 'نئے آرڈرز' : 'New'}</span>
               <Inbox className="w-4 h-4 text-[var(--brand-red)]" />
@@ -335,7 +294,7 @@ export default function AdminManagement() {
             )}
           </div>
 
-          <div className="rounded-xl border border-[var(--line)] bg-white p-5 space-y-1.5">
+          <div className="rounded-2xl border border-[var(--line)] bg-white shadow-[var(--shadow-card)] p-5 space-y-1.5">
             <div className="flex items-center justify-between text-xs font-medium text-[var(--ink-soft)]">
               <span>
                 {isUr ? 'اسکپ + منسوخ' : 'Skipped + Cancelled'}
@@ -355,7 +314,7 @@ export default function AdminManagement() {
             )}
           </div>
 
-          <div className="rounded-xl border border-[var(--line)] bg-white p-5 space-y-1.5">
+          <div className="rounded-2xl border border-[var(--line)] bg-white shadow-[var(--shadow-card)] p-5 space-y-1.5">
             <div className="flex items-center justify-between text-xs font-medium text-[var(--ink-soft)]">
               <span>
                 {isUr ? 'اوسط آرڈر ویلیو' : 'Average order value'}
@@ -375,7 +334,7 @@ export default function AdminManagement() {
             )}
           </div>
 
-          <div className="rounded-xl border border-[var(--line)] bg-white p-5 space-y-1.5">
+          <div className="rounded-2xl border border-[var(--line)] bg-white shadow-[var(--shadow-card)] p-5 space-y-1.5">
             <div className="flex items-center justify-between text-xs font-medium text-[var(--ink-soft)]">
               <span>{isUr ? 'بہترین دن' : 'Best day'}</span>
               <CalendarRange className="w-4 h-4 text-[var(--ink-soft)]" />
@@ -415,7 +374,7 @@ export default function AdminManagement() {
         ) : null}
 
         {/* Recent Orders in Range */}
-        <div className="rounded-xl border border-[var(--line)] bg-white overflow-hidden">
+        <div className="rounded-2xl border border-[var(--line)] bg-white shadow-[var(--shadow-card)] overflow-hidden">
           <div className="px-5 py-4 border-b border-[var(--line)] flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-bold text-[var(--ink)]">

@@ -64,7 +64,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           <div
             key={toast.id}
             role="status"
-            className={`pointer-events-auto flex items-center gap-3 rounded-lg border px-4 py-3 shadow-lg bg-white text-sm ${
+            className={`asatek-toast-in pointer-events-auto flex items-center gap-3 rounded-xl border px-4 py-3 shadow-lg bg-white/95 backdrop-blur-md text-sm ${
               toast.type === 'error'
                 ? 'border-[var(--brand-red)] text-[var(--ink)]'
                 : toast.type === 'success'

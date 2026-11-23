@@ -198,10 +198,10 @@ export function AdminLayout({ title, children }: AdminLayoutProps) {
   ];
 
   const sidebarContent = (
-    <div className="flex h-full flex-col bg-[var(--ink)] text-white w-64">
+    <div className="flex h-full flex-col bg-[#14141A] text-white w-64 shadow-xl">
       <div className="flex items-center justify-between px-5 h-16 border-b border-white/10">
         <Link to="/admin" className="flex items-center gap-2.5">
-          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border-2 border-[var(--accent-green)] bg-white text-[var(--brand-red)] font-heading font-bold text-xs">
+          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border-2 border-[var(--accent-green)] bg-white text-[var(--brand-red)] font-heading font-bold text-xs shadow-xs">
             A
           </span>
           <span className="font-heading font-bold text-base tracking-tight">
@@ -212,7 +212,7 @@ export function AdminLayout({ title, children }: AdminLayoutProps) {
           type="button"
           onClick={() => setSidebarOpen(false)}
           aria-label="Close sidebar"
-          className="lg:hidden p-1.5 text-gray-400 hover:text-white rounded"
+          className="lg:hidden p-1.5 text-gray-400 hover:text-white rounded-lg transition-colors"
         >
           <X className="w-5 h-5" />
         </button>
@@ -228,24 +228,34 @@ export function AdminLayout({ title, children }: AdminLayoutProps) {
               end={item.end}
               onClick={() => setSidebarOpen(false)}
               className={({ isActive }) =>
-                `flex items-center justify-between gap-2 rounded-lg px-3.5 py-2.5 text-sm font-medium transition-colors ${
+                `group relative flex items-center justify-between gap-2 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all duration-150 ${
                   isActive
-                    ? 'bg-[var(--brand-red)] text-white'
+                    ? 'bg-gradient-to-r from-[var(--brand-red)] to-[var(--brand-red-dark)] text-white shadow-[0_4px_12px_rgba(200,16,46,0.3)]'
                     : 'text-gray-300 hover:bg-white/10 hover:text-white'
                 }`
               }
             >
-              <span className="flex items-center gap-3 min-w-0">
-                <Icon className="w-4 h-4 shrink-0" />
-                <span className="truncate">{item.label}</span>
-              </span>
-              {typeof item.badge === 'number' && item.badge > 0 && (
-                <span
-                  data-testid="admin-new-orders-badge"
-                  className="inline-flex min-w-[20px] h-5 px-1.5 items-center justify-center rounded-full bg-white text-[var(--brand-red)] text-xs font-bold tabular-nums"
-                >
-                  {item.badge}
-                </span>
+              {({ isActive }) => (
+                <>
+                  <span
+                    className={`flex items-center gap-3 min-w-0 transition-transform duration-150 ${
+                      isActive
+                        ? 'translate-x-0.5 rtl:-translate-x-0.5'
+                        : 'group-hover:translate-x-1 rtl:group-hover:-translate-x-1'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4 shrink-0" />
+                    <span className="truncate">{item.label}</span>
+                  </span>
+                  {typeof item.badge === 'number' && item.badge > 0 && (
+                    <span
+                      data-testid="admin-new-orders-badge"
+                      className="inline-flex min-w-[20px] h-5 px-1.5 items-center justify-center rounded-full bg-white text-[var(--brand-red)] text-xs font-bold tabular-nums"
+                    >
+                      {item.badge}
+                    </span>
+                  )}
+                </>
               )}
             </NavLink>
           );
@@ -255,7 +265,7 @@ export function AdminLayout({ title, children }: AdminLayoutProps) {
       <div className="p-3 border-t border-white/10 space-y-1">
         <Link
           to="/"
-          className="flex items-center gap-3 rounded-lg px-3.5 py-2.5 text-sm text-gray-300 hover:bg-white/10 hover:text-white transition-colors"
+          className="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm text-gray-300 hover:bg-white/10 hover:text-white transition-colors"
         >
           <ExternalLink className="w-4 h-4 shrink-0" />
           <span>View Public Site</span>
@@ -263,7 +273,7 @@ export function AdminLayout({ title, children }: AdminLayoutProps) {
         <button
           type="button"
           onClick={handleLogout}
-          className="w-full flex items-center gap-3 rounded-lg px-3.5 py-2.5 text-sm text-gray-300 hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
+          className="w-full flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm text-gray-300 hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
         >
           <LogOut className="w-4 h-4 shrink-0" />
           <span>Sign Out</span>
@@ -278,17 +288,19 @@ export function AdminLayout({ title, children }: AdminLayoutProps) {
   );
 
   return (
-    <div dir={dir} lang={lang} className="min-h-screen flex bg-[var(--bg-alt)] text-[var(--ink)]">
+    <div dir={dir} lang={lang} className="min-h-screen flex bg-[var(--bg)] text-[var(--ink)]">
       {/* Desktop Sidebar */}
       <aside className="hidden lg:block shrink-0">{sidebarContent}</aside>
 
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-50 lg:hidden bg-black/50 flex"
+          className="fixed inset-0 z-50 lg:hidden bg-black/45 backdrop-blur-xs flex asatek-modal-backdrop"
           onClick={() => setSidebarOpen(false)}
         >
-          <div onClick={(e) => e.stopPropagation()}>{sidebarContent}</div>
+          <div className="asatek-modal-panel" onClick={(e) => e.stopPropagation()}>
+            {sidebarContent}
+          </div>
         </div>
       )}
 
@@ -300,13 +312,13 @@ export function AdminLayout({ title, children }: AdminLayoutProps) {
           </div>
         )}
 
-        <header className="h-16 bg-white border-b border-[var(--line)] px-4 md:px-6 flex items-center justify-between gap-4">
+        <header className="sticky top-0 z-30 h-16 bg-white/90 backdrop-blur-md border-b border-[var(--line)] px-4 md:px-6 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"
               onClick={() => setSidebarOpen(true)}
               aria-label="Open admin sidebar"
-              className="lg:hidden p-2 rounded-lg border border-[var(--line)] text-[var(--ink)] hover:bg-[var(--bg-alt)]"
+              className="lg:hidden p-2 rounded-xl border border-[var(--line)] text-[var(--ink)] hover:bg-[var(--bg-alt)] transition-colors"
             >
               <Menu className="w-5 h-5" />
             </button>
@@ -320,7 +332,7 @@ export function AdminLayout({ title, children }: AdminLayoutProps) {
               type="button"
               onClick={toggleLang}
               aria-label="Toggle language"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--line)] px-2.5 py-1.5 text-xs font-medium text-[var(--ink-soft)] hover:text-[var(--ink)] hover:bg-[var(--bg-alt)] cursor-pointer shrink-0"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--line)] bg-white px-2.5 py-1.5 text-xs font-medium text-[var(--ink-soft)] hover:text-[var(--ink)] hover:bg-[var(--bg-alt)] transition-colors cursor-pointer shrink-0"
             >
               <Globe className="w-3.5 h-3.5" />
               <span>{lang === 'en' ? 'اردو' : 'EN'}</span>
@@ -331,7 +343,7 @@ export function AdminLayout({ title, children }: AdminLayoutProps) {
               onClick={toggleMute}
               aria-label={muted ? 'Unmute new order sound' : 'Mute new order sound'}
               title={muted ? 'Sound alerts muted' : 'Sound alerts enabled'}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--line)] px-3 py-1.5 text-xs font-medium text-[var(--ink-soft)] hover:text-[var(--ink)] hover:bg-[var(--bg-alt)] cursor-pointer shrink-0"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--line)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--ink-soft)] hover:text-[var(--ink)] hover:bg-[var(--bg-alt)] transition-colors cursor-pointer shrink-0"
             >
               {muted ? (
                 <>
@@ -348,7 +360,7 @@ export function AdminLayout({ title, children }: AdminLayoutProps) {
           </div>
         </header>
 
-        <main className="flex-1 p-4 md:p-6 max-w-[1280px] w-full mx-auto">
+        <main className="flex-1 p-4 md:p-6 max-w-[1280px] w-full mx-auto asatek-page-enter">
           {children}
         </main>
       </div>

@@ -2,9 +2,11 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './contexts/AuthContext';
+import { IntroProvider } from './contexts/IntroContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { QuoteProvider } from './contexts/QuoteContext';
 import { ToastProvider } from './contexts/ToastContext';
+import { OpeningIntro } from './components/layout/OpeningIntro';
 import { ProtectedRoute } from './routes/ProtectedRoute';
 
 // Route-level code splitting for public and admin chunks
@@ -50,10 +52,12 @@ export default function App() {
       <LanguageProvider>
         <AuthProvider>
           <QuoteProvider>
-            <BrowserRouter>
-              <ToastProvider>
-                <Suspense fallback={<RouteFallback />}>
-                  <Routes>
+            <IntroProvider>
+              <BrowserRouter>
+                <ToastProvider>
+                  <OpeningIntro />
+                  <Suspense fallback={<RouteFallback />}>
+                    <Routes>
                     {/* Public Routes */}
                     <Route path="/" element={<Home />} />
                     <Route path="/products" element={<Products />} />
@@ -144,6 +148,7 @@ export default function App() {
                 </Suspense>
               </ToastProvider>
             </BrowserRouter>
+            </IntroProvider>
           </QuoteProvider>
         </AuthProvider>
       </LanguageProvider>

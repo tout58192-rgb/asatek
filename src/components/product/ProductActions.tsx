@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Plus } from 'lucide-react';
+import { Check, Plus } from 'lucide-react';
 import { useI18n } from '../../contexts/LanguageContext';
 import { useQuote } from '../../contexts/QuoteContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -41,6 +41,14 @@ export function ProductActions({
   const { data: settings } = useSettings();
   const queryClient = useQueryClient();
   const [waSubmitting, setWaSubmitting] = useState(false);
+  const [justAdded, setJustAdded] = useState(false);
+  const timerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+    };
+  }, []);
 
   const name = pick(product as unknown as Record<string, unknown>, 'name');
   const qty = Math.max(product.moq, quantity ?? product.moq);
@@ -61,6 +69,9 @@ export function ProductActions({
       snapshot_moq: product.moq,
       snapshot_image_url: primaryImage,
     });
+    setJustAdded(true);
+    if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+    timerRef.current = window.setTimeout(() => setJustAdded(false), 1100);
     showToast(t('common.addedToOrder'), 'success', {
       label: t('common.viewOrderList'),
       to: '/quote',
@@ -120,11 +131,24 @@ export function ProductActions({
         variant="primary"
         size={size}
         onClick={handleAdd}
-        className="w-full"
+        className={`w-full ${
+          justAdded
+            ? '!bg-none !bg-emerald-600 hover:!bg-emerald-700'
+            : ''
+        }`}
         aria-label={`${t('common.addToOrder')}: ${name}`}
       >
-        <Plus className="w-4 h-4 shrink-0" />
-        <span>{t('common.addToOrder')}</span>
+        {justAdded ? (
+          <>
+            <Check className="w-4 h-4 shrink-0" />
+            <span>{t('common.addedToOrder')}</span>
+          </>
+        ) : (
+          <>
+            <Plus className="w-4 h-4 shrink-0" />
+            <span>{t('common.addToOrder')}</span>
+          </>
+        )}
       </Button>
 
       <Button

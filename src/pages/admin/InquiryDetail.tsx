@@ -204,28 +204,36 @@ export default function AdminInquiryDetail() {
         </div>
 
         {/* Quick Order Workflow Actions */}
-        <div className="rounded-xl border border-[var(--line)] bg-white p-4 flex flex-wrap items-center justify-between gap-3">
-          <OrderStatusControls
-            inquiryId={inquiry.id}
-            reference={inquiry.reference}
-            currentStatus={inquiry.status}
-            currentSkipReason={inquiry.skip_reason}
-            adminNote={adminNote}
-            disabled={saving}
-            onSavingChange={setSaving}
-          />
-
-          {saving && (
+        <div className="rounded-2xl border border-[var(--line)] bg-white p-4 sm:p-5 shadow-[var(--shadow-card)] flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <span className="text-xs font-medium text-[var(--ink-soft)]">
-              Updating order...
+              Current Status:
             </span>
-          )}
+            <InquiryStatusBadge status={inquiry.status} />
+          </div>
+
+          <div className="flex items-center gap-3">
+            {saving && (
+              <span className="text-xs font-medium text-[var(--ink-soft)]">
+                Updating order...
+              </span>
+            )}
+            <OrderStatusControls
+              inquiryId={inquiry.id}
+              reference={inquiry.reference}
+              currentStatus={inquiry.status}
+              currentSkipReason={inquiry.skip_reason}
+              adminNote={adminNote}
+              disabled={saving}
+              onSavingChange={setSaving}
+            />
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Buyer & Items */}
           <div className="lg:col-span-8 space-y-6">
-            <div className="rounded-xl border border-[var(--line)] bg-white p-6 space-y-4">
+            <div className="rounded-2xl border border-[var(--line)] bg-white p-6 shadow-[var(--shadow-card)] space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--line)] pb-4">
                 <div>
                   <p className="font-mono-num text-lg font-bold text-[var(--brand-red)]">
@@ -303,7 +311,7 @@ export default function AdminInquiryDetail() {
             </div>
 
             {inquiry.items.length > 0 && (
-              <div className="rounded-xl border border-[var(--line)] bg-white overflow-hidden">
+              <div className="rounded-2xl border border-[var(--line)] bg-white shadow-[var(--shadow-card)] overflow-hidden">
                 <div className="px-5 py-3.5 border-b border-[var(--line)] bg-[var(--bg-alt)]">
                   <h2 className="text-sm font-bold text-[var(--ink)]">
                     Requested Items ({inquiry.items.length})
@@ -370,7 +378,7 @@ export default function AdminInquiryDetail() {
           <div className="lg:col-span-4">
             <form
               onSubmit={handleSaveNoteAndStatus}
-              className="rounded-xl border border-[var(--line)] bg-white p-6 space-y-4"
+              className="rounded-2xl border border-[var(--line)] bg-white p-6 shadow-[var(--shadow-card)] space-y-4"
             >
               <h2 className="text-base font-bold text-[var(--ink)]">
                 Admin Handling

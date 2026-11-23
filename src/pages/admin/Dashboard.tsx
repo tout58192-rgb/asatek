@@ -15,11 +15,17 @@ import { Button } from '../../components/ui/Button';
 import { TableRowSkeleton } from '../../components/ui/Skeleton';
 import { useDashboardCounts, useInquiries } from '../../hooks/useInquiries';
 import { formatDateTime, getErrorMessage } from '../../lib/format';
+import { useCountUp } from '../../lib/useCountUp';
 
 function isAnonymousPhone(phone: string | null | undefined): boolean {
   if (!phone) return true;
   const digits = phone.replace(/\D/g, '');
   return digits.length < 10 || /^0+$/.test(digits);
+}
+
+function CountUpNumber({ value }: { value: number }) {
+  const animated = useCountUp(value);
+  return <>{animated}</>;
 }
 
 export default function AdminDashboard() {
@@ -102,7 +108,7 @@ export default function AdminDashboard() {
         {(countsError || inqError) && (
           <div
             role="alert"
-            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-[var(--brand-red-light)] px-4 py-3 text-sm text-[var(--brand-red-dark)]"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-200 bg-[var(--brand-red-light)] px-4 py-3 text-sm text-[var(--brand-red-dark)]"
           >
             <span>
               {getErrorMessage(
@@ -123,7 +129,7 @@ export default function AdminDashboard() {
             return (
               <div
                 key={card.label}
-                className="rounded-xl border border-[var(--line)] bg-white p-5 space-y-2"
+                className="rounded-2xl border border-[var(--line)] bg-white p-5 space-y-2 shadow-[var(--shadow-card)] transition-transform duration-150 hover:-translate-y-0.5"
               >
                 <div className="flex items-center justify-between text-xs font-medium text-[var(--ink-soft)]">
                   <span>{card.label}</span>
@@ -134,7 +140,7 @@ export default function AdminDashboard() {
                 ) : (
                   <div>
                     <p className={`text-3xl font-bold tabular-nums ${card.accent}`}>
-                      {card.value}
+                      <CountUpNumber value={card.value} />
                     </p>
                     {card.sub && (
                       <p className="text-[11px] text-[var(--ink-soft)] mt-0.5">
@@ -149,7 +155,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Latest 5 Inquiries */}
-        <div className="rounded-xl border border-[var(--line)] bg-white overflow-hidden">
+        <div className="rounded-2xl border border-[var(--line)] bg-white shadow-[var(--shadow-card)] overflow-hidden">
           <div className="px-5 py-4 border-b border-[var(--line)] flex items-center justify-between">
             <h2 className="text-base font-bold text-[var(--ink)]">
               Latest Orders &amp; Inquiries
@@ -194,8 +200,8 @@ export default function AdminDashboard() {
                     return (
                       <tr
                         key={inq.id}
-                        className={`border-b last:border-b-0 border-[var(--line)] hover:bg-[var(--bg-alt)]/60 ${
-                          inq.status === 'new' ? 'bg-red-50/45' : ''
+                        className={`border-b last:border-b-0 border-[var(--line)] transition-colors duration-150 hover:bg-[var(--bg-alt)]/60 ${
+                          inq.status === 'new' ? 'asatek-new-row-highlight' : ''
                         }`}
                       >
                         <td className="px-4 py-3 font-mono-num font-semibold">

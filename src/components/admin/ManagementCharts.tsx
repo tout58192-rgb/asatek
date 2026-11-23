@@ -232,7 +232,7 @@ export default function ManagementCharts({
   return (
     <div
       data-testid="sales-by-date-card"
-      className="rounded-2xl border border-[var(--line)] bg-white p-5 sm:p-6 shadow-sm space-y-4"
+      className="rounded-2xl border border-[var(--line)] bg-white p-5 sm:p-6 shadow-[var(--shadow-card)] space-y-4"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -247,7 +247,7 @@ export default function ManagementCharts({
         {bestDay && hasAnySales && (
           <div
             data-testid="best-day-pill"
-            className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-[var(--brand-red-light)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-red-dark)] tabular-nums"
+            className="inline-flex items-center gap-2 rounded-xl border border-red-200/80 bg-gradient-to-r from-[var(--brand-red-light)] to-[#FFF7F8] px-3.5 py-1.5 text-xs font-semibold text-[var(--brand-red-dark)] shadow-xs tabular-nums"
           >
             <span className="h-2 w-2 rounded-full bg-[var(--brand-red)]" />
             <span dir="ltr">{bestDayFloatingText}</span>

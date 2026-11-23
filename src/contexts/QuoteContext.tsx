@@ -16,6 +16,7 @@ export interface QuoteItemEntry {
 interface QuoteContextValue {
   items: QuoteItemEntry[];
   totalCount: number;
+  lastAddedAt: number;
   addItem: (entry: QuoteItemEntry) => void;
   updateQuantity: (productId: string, quantity: number) => void;
   removeItem: (productId: string) => void;
@@ -37,6 +38,7 @@ function loadInitialItems(): QuoteItemEntry[] {
 
 export function QuoteProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<QuoteItemEntry[]>(loadInitialItems);
+  const [lastAddedAt, setLastAddedAt] = useState(0);
 
   useEffect(() => {
     try {
@@ -59,6 +61,7 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
       }
       return [...prev, { ...entry, quantity: safeQty }];
     });
+    setLastAddedAt(Date.now());
   }, []);
 
   const updateQuantity = useCallback((productId: string, quantity: number) => {
@@ -85,6 +88,7 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
       value={{
         items,
         totalCount: items.length,
+        lastAddedAt,
         addItem,
         updateQuantity,
         removeItem,

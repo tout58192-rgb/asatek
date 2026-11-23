@@ -29,14 +29,14 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-xs asatek-modal-backdrop"
       role="dialog"
       aria-modal="true"
       aria-labelledby="modal-title"
       onClick={onClose}
     >
       <div
-        className={`w-full ${maxWidthClass} rounded-xl bg-white border border-[var(--line)] shadow-xl max-h-[90vh] flex flex-col overflow-hidden`}
+        className={`w-full ${maxWidthClass} rounded-2xl bg-white border border-[var(--line)] shadow-2xl max-h-[90vh] flex flex-col overflow-hidden asatek-modal-panel`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--line)]">

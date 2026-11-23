@@ -4,15 +4,18 @@
   --brand-red: #C8102E;
   --brand-red-dark: #8B0A1E;
   --brand-red-light: #FDECEF;
-  --ink: #1A1A1A;
+  --ink: #14141A;
   --ink-soft: #4B5563;
-  --line: #E5E7EB;
-  --bg: #FFFFFF;
-  --bg-alt: #F7F7F8;
+  --line: #E4E4E9;
+  --bg: #FAFAFA;
+  --bg-alt: #F3F4F6;
+  --surface: #FFFFFF;
   --accent-green: #2E7D32;
   --warn: #B45309;
   --whatsapp: #25D366;
   --whatsapp-dark: #1DA851;
+  --shadow-card: 0 1px 2px rgba(20, 20, 26, 0.04), 0 8px 24px -8px rgba(20, 20, 26, 0.08);
+  --shadow-card-hover: 0 4px 12px rgba(20, 20, 26, 0.06), 0 16px 32px -12px rgba(20, 20, 26, 0.14);
 }
 
 @layer base {
@@ -23,6 +26,11 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     scroll-behavior: smooth;
+    overflow-x: clip;
+  }
+
+  body {
+    overflow-x: clip;
   }
 
   html[lang="ur"] {
@@ -30,11 +38,12 @@
   }
 
   html[lang="ur"] body {
-    line-height: 2.05;
+    line-height: 2.15;
   }
 
   h1, h2, h3, h4, .font-heading {
     font-family: 'Poppins', 'Inter', system-ui, sans-serif;
+    letter-spacing: -0.025em;
   }
 
   .font-mono-num {
@@ -48,7 +57,7 @@
 }
 
 html[lang="ur"] body {
-  line-height: 2.05;
+  line-height: 2.15;
 }
 
 html[lang="ur"] h1,
@@ -57,15 +66,25 @@ html[lang="ur"] h3,
 html[lang="ur"] h4,
 html[lang="ur"] .font-heading {
   font-family: 'Noto Nastaliq Urdu', 'Poppins', system-ui, sans-serif;
-  line-height: 2.15;
+  letter-spacing: 0;
+  line-height: 2.25;
 }
 
-/* Subtle circuit line pattern for dark charcoal-to-red hero */
+/* Deep charcoal-to-crimson hero with subtle circuit pattern & ambient glow */
 .hero-circuit-bg {
-  background-color: #1A1A1A;
+  background-color: #14141A;
   background-image:
-    linear-gradient(135deg, rgba(26, 26, 26, 0.96) 0%, rgba(139, 10, 30, 0.88) 65%, rgba(200, 16, 46, 0.86) 100%),
+    radial-gradient(circle at 82% 24%, rgba(200, 16, 46, 0.34) 0%, rgba(200, 16, 46, 0) 52%),
+    linear-gradient(135deg, rgba(20, 20, 26, 0.97) 0%, rgba(139, 10, 30, 0.88) 68%, rgba(200, 16, 46, 0.85) 100%),
     url("data:image/svg+xml,%3Csvg width='120' height='120' viewBox='0 0 120 120' xmlns='http://www.w3.org/2000/svg'%3E%3Cg stroke='%23ffffff' stroke-opacity='0.06' stroke-width='1' fill='none'%3E%3Cpath d='M0 24H36L48 36H96M120 24H104M24 0V36L12 48V96M72 0V20L84 32V72L96 84V120M0 84H40L56 68H120'/%3E%3Ccircle cx='36' cy='24' r='2.5' fill='%23ffffff' fill-opacity='0.08'/%3E%3Ccircle cx='96' cy='36' r='2.5' fill='%23ffffff' fill-opacity='0.08'/%3E%3Ccircle cx='56' cy='68' r='2.5' fill='%23ffffff' fill-opacity='0.08'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+/* Premium surface utility */
+.surface-card {
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background-color: var(--surface);
+  box-shadow: var(--shadow-card);
 }
 
 /* Skeleton shimmer */
@@ -84,6 +103,29 @@ html[lang="ur"] .font-heading {
   animation: asatek-shimmer 1.4s ease-in-out infinite;
 }
 
+/* GPU-composited micro-animations (transform + opacity only) */
+@keyframes asatek-fade-up {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes asatek-page-fade {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
 @keyframes asatek-area-fade {
   from {
     opacity: 0;
@@ -93,12 +135,212 @@ html[lang="ur"] .font-heading {
   }
 }
 
+@keyframes asatek-toast-slide {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -10px, 0) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes asatek-modal-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes asatek-sheet-up {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 100%, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes asatek-menu-spring {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes asatek-cart-pop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.28);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes asatek-cart-fly {
+  0% {
+    opacity: 0;
+    transform: translate3d(-14px, 12px, 0) scale(0.5);
+  }
+  40% {
+    opacity: 1;
+    transform: translate3d(-4px, -6px, 0) scale(1.1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.7);
+  }
+}
+
+@keyframes asatek-new-row-settle {
+  0% {
+    background-color: rgba(200, 16, 46, 0.12);
+  }
+  70% {
+    background-color: rgba(200, 16, 46, 0.08);
+  }
+  100% {
+    background-color: rgba(254, 242, 242, 0.45);
+  }
+}
+
+.asatek-page-enter {
+  animation: asatek-page-fade 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.asatek-hero-in {
+  animation: asatek-fade-up 340ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.asatek-reveal {
+  opacity: 0;
+  transform: translate3d(0, 14px, 0);
+  transition:
+    opacity 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 320ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform, opacity;
+}
+
+.asatek-reveal.is-visible {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
+.asatek-toast-in {
+  animation: asatek-toast-slide 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.asatek-modal-backdrop {
+  animation: asatek-area-fade 180ms ease-out both;
+}
+
+.asatek-modal-panel {
+  animation: asatek-modal-in 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.asatek-sheet-up {
+  animation: asatek-sheet-up 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.asatek-menu-item-in {
+  animation: asatek-menu-spring 250ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.asatek-cart-pop {
+  animation: asatek-cart-pop 340ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.asatek-cart-fly {
+  animation: asatek-cart-fly 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.asatek-new-row-highlight {
+  animation: asatek-new-row-settle 3.8s ease-out forwards;
+}
+
+@keyframes asatek-intro-logo-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes asatek-intro-line-draw {
+  from {
+    opacity: 0.3;
+    transform: scaleX(0);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes asatek-caret-pulse {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.asatek-intro-logo {
+  animation: asatek-intro-logo-in 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.asatek-intro-line {
+  animation: asatek-intro-line-draw 520ms cubic-bezier(0.16, 1, 0.3, 1) 180ms both;
+}
+
+.asatek-caret-blink {
+  animation: asatek-caret-pulse 760ms steps(1, end) infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
   }
-  .skeleton-shimmer {
-    animation: none;
+  .skeleton-shimmer,
+  .asatek-page-enter,
+  .asatek-hero-in,
+  .asatek-toast-in,
+  .asatek-modal-backdrop,
+  .asatek-modal-panel,
+  .asatek-sheet-up,
+  .asatek-menu-item-in,
+  .asatek-cart-pop,
+  .asatek-cart-fly,
+  .asatek-new-row-highlight,
+  .asatek-intro-logo,
+  .asatek-intro-line,
+  .asatek-caret-blink {
+    animation: none !important;
+  }
+  .asatek-reveal {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
   }
   *, *::before, *::after {
     transition-duration: 0.01ms !important;

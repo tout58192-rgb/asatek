@@ -25,7 +25,8 @@ export function Footer() {
     : '#';
 
   return (
-    <footer className="bg-[var(--ink)] text-white border-t-4 border-[var(--brand-red)]">
+    <footer className="bg-[var(--ink)] text-white relative">
+      <div className="h-1 w-full bg-gradient-to-r from-[var(--brand-red-dark)] via-[var(--brand-red)] to-[var(--brand-red-dark)]" />
       <div className="max-w-[1200px] mx-auto px-4 md:px-6 py-12">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
           {/* Column 1: Brand */}

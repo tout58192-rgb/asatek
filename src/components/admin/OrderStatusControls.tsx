@@ -1,15 +1,18 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  Ban,
-  CheckCircle2,
-  PackageCheck,
-  RotateCcw,
+  BadgeCheck,
+  Check,
+  ChevronDown,
+  Loader2,
+  SkipForward,
   Truck,
-  XCircle,
+  X,
 } from 'lucide-react';
 import { useToast } from '../../contexts/ToastContext';
 import { getErrorMessage } from '../../lib/format';
+import { getNextMenuIndex, type MenuNavKey } from '../../lib/orderHelpers';
 import {
   updateInquiry,
   type UpdateInquiryPayload,
@@ -30,71 +33,73 @@ interface OrderStatusControlsProps {
   onSavingChange?: (saving: boolean) => void;
 }
 
-const STATUS_OPTIONS: Array<{
+interface StatusActionOption {
   value: InquiryStatus;
   label: string;
-  icon: typeof CheckCircle2;
-  idleClass: string;
-  activeClass: string;
-}> = [
-  {
-    value: 'new',
-    label: 'New',
-    icon: RotateCcw,
-    idleClass:
-      'border-gray-300 bg-white text-[var(--ink-soft)] hover:bg-gray-100 hover:text-[var(--ink)]',
-    activeClass: 'border-[var(--ink)] bg-[var(--ink)] text-white',
-  },
+  hint: string;
+  icon: typeof Check;
+  textClass: string;
+  iconBoxClass: string;
+  hoverClass: string;
+}
+
+const STATUS_MENU_OPTIONS: StatusActionOption[] = [
   {
     value: 'confirmed',
     label: 'Confirm',
-    icon: CheckCircle2,
-    idleClass:
-      'border-green-300 bg-green-50 text-green-800 hover:bg-green-100',
-    activeClass: 'border-green-600 bg-green-600 text-white',
+    hint: 'Approve & count toward revenue',
+    icon: Check,
+    textClass: 'text-emerald-800',
+    iconBoxClass: 'bg-emerald-50 border-emerald-200 text-emerald-700',
+    hoverClass: 'hover:bg-emerald-50/75 focus-visible:bg-emerald-50/75',
   },
   {
     value: 'skipped',
     label: 'Skip',
-    icon: Ban,
-    idleClass:
-      'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100',
-    activeClass: 'border-amber-500 bg-amber-500 text-white',
+    hint: 'Hold with optional customer reason',
+    icon: SkipForward,
+    textClass: 'text-amber-800',
+    iconBoxClass: 'bg-amber-50 border-amber-200 text-amber-700',
+    hoverClass: 'hover:bg-amber-50/80 focus-visible:bg-amber-50/80',
   },
   {
     value: 'cancelled',
     label: 'Cancel',
-    icon: XCircle,
-    idleClass:
-      'border-red-300 bg-red-50 text-[var(--brand-red-dark)] hover:bg-red-100',
-    activeClass:
-      'border-[var(--brand-red)] bg-[var(--brand-red)] text-white',
+    hint: 'Cancel with optional customer reason',
+    icon: X,
+    textClass: 'text-[var(--brand-red-dark)]',
+    iconBoxClass: 'bg-red-50 border-red-200 text-[var(--brand-red)]',
+    hoverClass: 'hover:bg-red-50/80 focus-visible:bg-red-50/80',
   },
   {
     value: 'dispatched',
     label: 'Dispatched',
+    hint: 'Handed over to transport',
     icon: Truck,
-    idleClass: 'border-sky-300 bg-sky-50 text-sky-900 hover:bg-sky-100',
-    activeClass: 'border-sky-600 bg-sky-600 text-white',
+    textClass: 'text-sky-800',
+    iconBoxClass: 'bg-sky-50 border-sky-200 text-sky-700',
+    hoverClass: 'hover:bg-sky-50/80 focus-visible:bg-sky-50/80',
   },
   {
     value: 'completed',
     label: 'Completed',
-    icon: PackageCheck,
-    idleClass:
-      'border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100',
-    activeClass: 'border-emerald-700 bg-emerald-700 text-white',
+    hint: 'Order delivered and fulfilled',
+    icon: BadgeCheck,
+    textClass: 'text-[#14141A]',
+    iconBoxClass: 'bg-gray-100 border-gray-300 text-[#14141A]',
+    hoverClass: 'hover:bg-gray-100/90 focus-visible:bg-gray-100/90',
   },
 ];
 
 const TOAST_LABELS: Partial<Record<InquiryStatus, string>> = {
-  new: 'Order marked as New',
   confirmed: 'Order confirmed',
   skipped: 'Order skipped',
   cancelled: 'Order cancelled',
   dispatched: 'Order marked dispatched',
   completed: 'Order marked completed',
 };
+
+const DESKTOP_MENU_WIDTH = 300;
 
 export function OrderStatusControls({
   inquiryId,
@@ -108,8 +113,22 @@ export function OrderStatusControls({
 }: OrderStatusControlsProps) {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
+  const menuId = useId();
+
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const flashTimerRef = useRef<number | null>(null);
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [isMobileSheet, setIsMobileSheet] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number }>({
+    top: 0,
+    left: 0,
+  });
 
   const [saving, setSaving] = useState(false);
+  const [confirmFlash, setConfirmFlash] = useState(false);
   const [reasonModalStatus, setReasonModalStatus] = useState<
     'skipped' | 'cancelled' | null
   >(null);
@@ -117,15 +136,130 @@ export function OrderStatusControls({
 
   const isBusy = saving || disabled;
 
+  const closeMenu = useCallback((restoreFocus = false) => {
+    setMenuOpen(false);
+    if (restoreFocus) {
+      window.requestAnimationFrame(() => {
+        triggerRef.current?.focus();
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (flashTimerRef.current !== null) {
+        window.clearTimeout(flashTimerRef.current);
+      }
+    };
+  }, []);
+
+  const updateMenuPosition = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const mobile = window.innerWidth < 640;
+    setIsMobileSheet(mobile);
+    if (mobile || !triggerRef.current) return;
+
+    const rect = triggerRef.current.getBoundingClientRect();
+    const estimatedHeight = 296;
+    const margin = 12;
+    const placeAbove =
+      rect.bottom + estimatedHeight + margin > window.innerHeight &&
+      rect.top - estimatedHeight - margin > 0;
+
+    const top = placeAbove
+      ? Math.max(margin, rect.top - estimatedHeight - 8)
+      : Math.min(window.innerHeight - estimatedHeight - margin, rect.bottom + 8);
+
+    const isRtl =
+      document.documentElement.dir === 'rtl' ||
+      getComputedStyle(triggerRef.current).direction === 'rtl';
+
+    const preferredLeft = isRtl
+      ? rect.left
+      : rect.right - DESKTOP_MENU_WIDTH;
+    const left = Math.max(
+      margin,
+      Math.min(preferredLeft, window.innerWidth - DESKTOP_MENU_WIDTH - margin),
+    );
+
+    setMenuPos({ top, left });
+  }, []);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    updateMenuPosition();
+
+    const focusTimer = window.requestAnimationFrame(() => {
+      const currentIdx = STATUS_MENU_OPTIONS.findIndex(
+        (o) => o.value === currentStatus,
+      );
+      const targetIdx = currentIdx >= 0 ? currentIdx : 0;
+      itemRefs.current[targetIdx]?.focus();
+    });
+
+    const handleResizeOrScroll = () => updateMenuPosition();
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        closeMenu(true);
+      }
+    };
+    const handlePointerDown = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node | null;
+      if (!target) return;
+      if (
+        menuRef.current?.contains(target) ||
+        triggerRef.current?.contains(target)
+      ) {
+        return;
+      }
+      closeMenu(false);
+    };
+
+    window.addEventListener('resize', handleResizeOrScroll);
+    window.addEventListener('scroll', handleResizeOrScroll, true);
+    window.addEventListener('keydown', handleKeyDown, true);
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('touchstart', handlePointerDown, { passive: true });
+
+    return () => {
+      window.cancelAnimationFrame(focusTimer);
+      window.removeEventListener('resize', handleResizeOrScroll);
+      window.removeEventListener('scroll', handleResizeOrScroll, true);
+      window.removeEventListener('keydown', handleKeyDown, true);
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('touchstart', handlePointerDown);
+    };
+  }, [menuOpen, currentStatus, updateMenuPosition, closeMenu]);
+
+  // Never leave menu open when saving or modal opens
+  useEffect(() => {
+    if (isBusy || reasonModalStatus) {
+      setMenuOpen(false);
+    }
+  }, [isBusy, reasonModalStatus]);
+
   const setSavingState = (next: boolean) => {
     setSaving(next);
     onSavingChange?.(next);
+  };
+
+  const triggerConfirmSuccessFlash = () => {
+    setConfirmFlash(true);
+    if (flashTimerRef.current !== null) {
+      window.clearTimeout(flashTimerRef.current);
+    }
+    flashTimerRef.current = window.setTimeout(() => {
+      setConfirmFlash(false);
+    }, 1300);
   };
 
   const commitStatus = async (
     nextStatus: InquiryStatus,
     reason?: string | null,
   ) => {
+    setMenuOpen(false);
     setSavingState(true);
     try {
       const payload: UpdateInquiryPayload = {
@@ -141,7 +275,13 @@ export function OrderStatusControls({
 
       await updateInquiry(inquiryId, payload);
 
-      await Promise.all([
+      showToast(TOAST_LABELS[nextStatus] ?? 'Order status updated');
+      setReasonModalStatus(null);
+      if (nextStatus === 'confirmed') {
+        triggerConfirmSuccessFlash();
+      }
+
+      void Promise.all([
         queryClient.invalidateQueries({ queryKey: ['inquiries'] }),
         queryClient.invalidateQueries({ queryKey: ['inquiry_status_counts'] }),
         queryClient.invalidateQueries({ queryKey: ['inquiry', inquiryId] }),
@@ -149,9 +289,6 @@ export function OrderStatusControls({
         queryClient.invalidateQueries({ queryKey: ['sales_summary'] }),
         queryClient.invalidateQueries({ queryKey: ['track_order'] }),
       ]);
-
-      showToast(TOAST_LABELS[nextStatus] ?? 'Order status updated');
-      setReasonModalStatus(null);
     } catch (err) {
       showToast(getErrorMessage(err, 'Could not update order status'), 'error');
     } finally {
@@ -159,15 +296,39 @@ export function OrderStatusControls({
     }
   };
 
-  const handleOptionClick = (nextStatus: InquiryStatus) => {
+  const handleOptionSelect = (nextStatus: InquiryStatus) => {
     if (isBusy) return;
+    closeMenu(false);
     if (nextStatus === 'skipped' || nextStatus === 'cancelled') {
       setReasonText(currentSkipReason ?? '');
       setReasonModalStatus(nextStatus);
       return;
     }
-    if (nextStatus === currentStatus) return;
     void commitStatus(nextStatus);
+  };
+
+  const handleMenuKeyDown = (
+    e: React.KeyboardEvent<HTMLButtonElement>,
+    idx: number,
+  ) => {
+    if (
+      e.key === 'ArrowDown' ||
+      e.key === 'ArrowUp' ||
+      e.key === 'Home' ||
+      e.key === 'End'
+    ) {
+      e.preventDefault();
+      const nextIdx = getNextMenuIndex(
+        idx,
+        e.key as MenuNavKey,
+        STATUS_MENU_OPTIONS.length,
+      );
+      if (nextIdx >= 0) {
+        itemRefs.current[nextIdx]?.focus();
+      }
+    } else if (e.key === 'Tab') {
+      closeMenu(false);
+    }
   };
 
   const handleReasonSubmit = (e: React.FormEvent) => {
@@ -178,43 +339,162 @@ export function OrderStatusControls({
 
   const isCancelModal = reasonModalStatus === 'cancelled';
 
+  const triggerClasses = confirmFlash
+    ? 'bg-gradient-to-br from-emerald-600 to-emerald-700 text-white border-transparent shadow-[0_4px_14px_rgba(22,163,74,0.3)]'
+    : 'bg-gradient-to-br from-[var(--brand-red)] to-[var(--brand-red-dark)] text-white border-transparent shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_2px_6px_rgba(200,16,46,0.22)] hover:from-[#D41232] hover:to-[#7A081A] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_6px_16px_rgba(200,16,46,0.28)]';
+
+  const menuContent = (
+    <div className="space-y-1">
+      {STATUS_MENU_OPTIONS.map((opt, idx) => {
+        const Icon = opt.icon;
+        const isCurrent = currentStatus === opt.value;
+        return (
+          <button
+            key={opt.value}
+            ref={(el) => {
+              itemRefs.current[idx] = el;
+            }}
+            type="button"
+            role="menuitem"
+            aria-current={isCurrent ? 'true' : undefined}
+            style={{ animationDelay: `${idx * 40}ms` }}
+            onKeyDown={(e) => handleMenuKeyDown(e, idx)}
+            onClick={() => handleOptionSelect(opt.value)}
+            className={`asatek-menu-item-in w-full min-h-[44px] flex items-center gap-3 rounded-xl px-3 py-2 text-start transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--brand-red)] cursor-pointer ${
+              isCurrent
+                ? 'bg-[var(--bg-alt)] ring-1 ring-[var(--line)]'
+                : opt.hoverClass
+            }`}
+          >
+            <span
+              className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border shrink-0 ${opt.iconBoxClass}`}
+            >
+              <Icon className="w-4 h-4" />
+            </span>
+            <span className="flex-1 min-w-0">
+              <span className={`block text-sm font-semibold leading-tight ${opt.textClass}`}>
+                {opt.label}
+              </span>
+              <span className="block text-[11px] text-[var(--ink-soft)] truncate mt-0.5">
+                {opt.hint}
+              </span>
+            </span>
+            {isCurrent && (
+              <span className="text-[11px] font-semibold text-[var(--ink-soft)] shrink-0">
+                Current
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+
   return (
     <>
-      <div
-        role="group"
-        aria-label={`Status actions for ${reference}`}
-        className={
-          compact
-            ? 'grid grid-cols-3 gap-1 w-[252px]'
-            : 'flex flex-wrap items-center gap-2'
-        }
-      >
-        {STATUS_OPTIONS.map((opt) => {
-          const Icon = opt.icon;
-          const active = currentStatus === opt.value;
-          const allowReopenReason =
-            opt.value === 'skipped' || opt.value === 'cancelled';
-          const btnDisabled = isBusy || (active && !allowReopenReason);
-
-          return (
-            <button
-              key={opt.value}
-              type="button"
-              disabled={btnDisabled}
-              aria-pressed={active}
-              onClick={() => handleOptionClick(opt.value)}
-              className={`inline-flex items-center justify-center gap-0.5 rounded border font-semibold transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
-                compact
-                  ? 'px-1 py-0.5 text-[10px]'
-                  : 'px-3 py-1.5 text-xs min-h-[36px] rounded-md gap-1'
-              } ${active ? opt.activeClass : opt.idleClass}`}
-            >
-              <Icon className={compact ? 'w-2.5 h-2.5 shrink-0' : 'w-3.5 h-3.5 shrink-0'} />
-              <span className="whitespace-nowrap">{opt.label}</span>
-            </button>
-          );
-        })}
+      <div className="inline-flex items-center">
+        <button
+          ref={triggerRef}
+          type="button"
+          disabled={isBusy}
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          aria-controls={menuOpen ? menuId : undefined}
+          aria-label={
+            confirmFlash
+              ? `Order ${reference} confirmed`
+              : `Update status for ${reference}`
+          }
+          onClick={() => {
+            if (isBusy) return;
+            setMenuOpen((prev) => !prev);
+          }}
+          className={`inline-flex items-center justify-center gap-2 rounded-lg border font-semibold whitespace-nowrap shrink-0 transition-all duration-150 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-red)] disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer ${
+            compact
+              ? 'min-h-[44px] sm:min-h-[38px] px-3.5 py-2 text-xs'
+              : 'min-h-[44px] px-4 py-2.5 text-sm'
+          } ${triggerClasses}`}
+        >
+          {saving ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+              <span>Updating...</span>
+            </>
+          ) : confirmFlash ? (
+            <>
+              <Check className="w-4 h-4 shrink-0" />
+              <span>Confirmed</span>
+            </>
+          ) : (
+            <>
+              <span>Update status</span>
+              <ChevronDown
+                className={`w-4 h-4 shrink-0 transition-transform duration-200 ${
+                  menuOpen ? 'rotate-180' : ''
+                }`}
+              />
+            </>
+          )}
+        </button>
       </div>
+
+      {menuOpen &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          isMobileSheet ? (
+            <div
+              className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs asatek-modal-backdrop"
+              onClick={() => closeMenu(true)}
+            >
+              <div
+                ref={menuRef}
+                id={menuId}
+                role="menu"
+                aria-label={`Update status options for ${reference}`}
+                onClick={(e) => e.stopPropagation()}
+                className="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl border-t border-[var(--line)] bg-white p-4 pb-6 shadow-2xl asatek-sheet-up max-h-[85vh] overflow-y-auto"
+              >
+                <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-gray-300" />
+                <div className="flex items-center justify-between gap-3 pb-3 mb-2 border-b border-[var(--line)]">
+                  <div>
+                    <p className="text-sm font-bold text-[var(--ink)]">
+                      Update status
+                    </p>
+                    <p className="font-mono-num text-xs text-[var(--ink-soft)]">
+                      {reference}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    aria-label="Close status menu"
+                    onClick={() => closeMenu(true)}
+                    className="inline-flex items-center justify-center w-11 h-11 rounded-lg text-[var(--ink-soft)] hover:bg-[var(--bg-alt)] hover:text-[var(--ink)] cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                {menuContent}
+              </div>
+            </div>
+          ) : (
+            <div
+              ref={menuRef}
+              id={menuId}
+              role="menu"
+              aria-label={`Update status options for ${reference}`}
+              style={{
+                position: 'fixed',
+                top: menuPos.top,
+                left: menuPos.left,
+                width: DESKTOP_MENU_WIDTH,
+              }}
+              className="z-50 rounded-2xl border border-[var(--line)] bg-white/95 backdrop-blur-md p-2 shadow-[0_16px_38px_-10px_rgba(20,20,26,0.22)]"
+            >
+              {menuContent}
+            </div>
+          ),
+          document.body,
+        )}
 
       <Modal
         open={Boolean(reasonModalStatus)}

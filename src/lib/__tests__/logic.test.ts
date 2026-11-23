@@ -32,10 +32,20 @@ import {
   formatShortPKR,
   formatShortChartDate,
   buildContinuousDailySeries,
+  getNextMenuIndex,
 } from '../orderHelpers';
 import { getMockTrackedOrder, getMockAdminSalesSummary } from '../../services/mockData';
 import { buyerOrderSchema, whatsappSettingSchema, validateQuantity } from '../validation';
 import { pick } from '../i18n';
+import {
+  INTRO_STORAGE_KEY,
+  hasSeenIntro,
+  markIntroSeen,
+  splitHeadingHighlight,
+  splitUrduWords,
+  getStepDelayMs,
+  getHeadingAnimationMode,
+} from '../heroAnimation';
 import type { InquiryWithItems, ProductPriceTier } from '../../types/db';
 
 const sampleTiers: ProductPriceTier[] = [
@@ -390,3 +400,70 @@ test('orderHelpers: cancelled WhatsApp message and Sales by date chart helpers',
   assert.deepEqual(continuous[2], { date: '2026-11-14', orders: 3, revenue: 85000 });
   assert.deepEqual(continuous[3], { date: '2026-11-15', orders: 0, revenue: 0 });
 });
+
+test('orderHelpers: getNextMenuIndex handles ArrowDown, ArrowUp, Home, End wrapping', () => {
+  assert.equal(getNextMenuIndex(0, 'ArrowDown', 5), 1);
+  assert.equal(getNextMenuIndex(4, 'ArrowDown', 5), 0);
+  assert.equal(getNextMenuIndex(0, 'ArrowUp', 5), 4);
+  assert.equal(getNextMenuIndex(3, 'ArrowUp', 5), 2);
+  assert.equal(getNextMenuIndex(-1, 'ArrowDown', 5), 0);
+  assert.equal(getNextMenuIndex(-1, 'ArrowUp', 5), 4);
+  assert.equal(getNextMenuIndex(2, 'Home', 5), 0);
+  assert.equal(getNextMenuIndex(2, 'End', 5), 4);
+  assert.equal(getNextMenuIndex(0, 'ArrowDown', 0), -1);
+});
+
+test('heroAnimation: splits highlight word, preserves joined Urdu words, computes delays and modes', () => {
+  assert.deepEqual(splitHeadingHighlight('Factory-Direct Power Electronics'), {
+    leading: 'Factory-Direct Power ',
+    highlight: 'Electronics',
+  });
+  assert.deepEqual(splitHeadingHighlight('ASATEK'), {
+    leading: '',
+    highlight: 'ASATEK',
+  });
+  assert.deepEqual(splitHeadingHighlight('   '), {
+    leading: '',
+    highlight: '',
+  });
+
+  const urWords = splitUrduWords('فیکٹری سے براہِ راست پاور الیکٹرانکس');
+  assert.deepEqual(urWords, ['فیکٹری', 'سے', 'براہِ', 'راست', 'پاور', 'الیکٹرانکس']);
+  assert.deepEqual(splitUrduWords('   '), []);
+
+  assert.equal(getStepDelayMs('en', 32, false), 45);
+  assert.equal(getStepDelayMs('ur', 6, false), 120);
+  assert.equal(getStepDelayMs('ur', 6, true), 65);
+  assert.ok(getStepDelayMs('en', 40, true) <= 24);
+
+  assert.equal(
+    getHeadingAnimationMode({ reducedMotion: true, isFirstVisit: true, isLanguageSwitch: false, lang: 'en' }),
+    'none',
+  );
+  assert.equal(
+    getHeadingAnimationMode({ reducedMotion: false, isFirstVisit: false, isLanguageSwitch: false, lang: 'en' }),
+    'fade-up',
+  );
+  assert.equal(
+    getHeadingAnimationMode({ reducedMotion: false, isFirstVisit: true, isLanguageSwitch: false, lang: 'en' }),
+    'typewriter-en',
+  );
+  assert.equal(
+    getHeadingAnimationMode({ reducedMotion: false, isFirstVisit: false, isLanguageSwitch: true, lang: 'ur' }),
+    'words-ur',
+  );
+
+  const storeMap = new Map<string, string>();
+  const mockStorage = {
+    getItem: (k: string) => storeMap.get(k) ?? null,
+    setItem: (k: string, v: string) => {
+      storeMap.set(k, v);
+    },
+  };
+  assert.equal(hasSeenIntro(mockStorage), false);
+  markIntroSeen(mockStorage);
+  assert.equal(storeMap.get(INTRO_STORAGE_KEY), '1');
+  assert.equal(hasSeenIntro(mockStorage), true);
+});
+
+
